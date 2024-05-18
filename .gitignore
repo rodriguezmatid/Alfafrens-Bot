@@ -1,0 +1,47 @@
+# .gitignore
+
+# Archivos y directorios generados por Python
+_pycache_/
+*.pyc
+*.pyo
+*.pyd
+*.pyc
+
+# Archivos y directorios generados por entornos virtuales
+venv/
+*.venv
+env/
+ENV/
+
+# Archivos y directorios generados por herramientas de desarrollo
+*.swp
+*.swo
+*.swn
+*.pyre/
+*.ropeproject
+.ipynb_checkpoints/
+*.egg-info/
+dist/
+build/
+.coverage
+htmlcov/
+.pytest_cache/
+.tox/
+.cache/
+.pybuilder/
+.coverage.*
+
+# Archivos de configuración del entorno
+.env
+
+# Otros archivos y directorios que podrías querer ignorar
+*.bak
+*.sqlite3
+*.csv
+# *.json
+*.lock
+*.DS_Store
+*.tmp
+*.temp
+logs/*
+logs/
