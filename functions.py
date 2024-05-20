@@ -1,5 +1,5 @@
 import requests, pandas as pd, os, dotenv
-from queries import query_account_by_id, query_all_accounts, query_channels_subscription_cost
+from queries import query_account_by_id, query_all_accounts, query_channels_subscription_cost, query_channels_subscribed, query_channels_subscribed_new
 from web3 import Web3
 dotenv.load_dotenv()
 
@@ -63,6 +63,39 @@ def get_channels_subscription_cost(subscription_cost_input):
     else:
         return 'No accounts found with the given subscription cost.'
 
+# Function to get channels subscribed by an account
+def get_channels_subscribed(account_id):
+    query = query_channels_subscribed(account_id)
+    data = run_query(query)
+    
+    if data and 'accounts' in data:
+        accounts = data['accounts']
+        ids = [account['id'] for account in accounts]
+        return ids
+    else:
+        return 'No channels found for the given account.'
+
+def get_unsubscribed_channels(account_id, subscription_cost_input):
+    # Get channels by subscription cost
+    cost_channels = get_channels_subscription_cost(subscription_cost_input)
+    
+    # Get channels subscribed by account
+    subscribed_channels = get_channels_subscribed(account_id)
+    
+    # Ensure both results are lists
+    if not isinstance(cost_channels, list):
+        print("Error in get_channels_subscription_cost")
+        return cost_channels
+    
+    if not isinstance(subscribed_channels, list):
+        print("Error in get_channels_subscribed")
+        return subscribed_channels
+    
+    # Calculate the difference
+    unsubscribed_channels = list(set(cost_channels) - set(subscribed_channels))
+    
+    return unsubscribed_channels
+
 def get_all_accounts():
     query = query_all_accounts()
     data = run_query(query)
@@ -78,3 +111,22 @@ def get_all_accounts():
     count_series.columns = ['sender_id', 'count']
 
     return count_series
+
+async def obtain_degen_price():
+    """
+    Asynchronously fetches the current price of degen (ETH) in USD.
+
+    This function makes an HTTP GET request to the CoinGecko API to retrieve
+    the latest price of degen in US dollars. It parses the JSON response
+    to extract the price and then returns it.
+    """
+    url = "https://api.coingecko.com/api/v3/simple/price?ids=degen-base&vs_currencies=usd"
+
+    try:
+        response = requests.get(url) # Making an HTTP GET request to the CoinGecko API
+        data = response.json()
+        degen_price = data["degen-base"]["usd"]
+        return degen_price
+    except Exception as e:
+        # Raising an exception if the HTTP request fails or the response cannot be parsed
+        raise Exception(f"Error fetching Degen price: {e}")

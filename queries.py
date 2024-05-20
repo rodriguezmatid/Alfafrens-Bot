@@ -1,65 +1,3 @@
-# import requests
-
-# # Define la URL del endpoint del subgrafo
-# url = 'https://base-mainnet.subgraph.x.superfluid.dev'
-
-# # Define la consulta GraphQL sin filtro
-# query = '''
-# {
-#   accounts {
-#     id
-#     isSuperApp
-#     inflows {
-#       currentFlowRate
-#       token {
-#         symbol
-#       }
-#       sender {
-#         id
-#       }
-#     }
-#     outflows {
-#       currentFlowRate
-#       token {
-#         symbol
-#       }
-#       receiver {
-#         id
-#       }
-#     }
-#     accountTokenSnapshots {
-#       token {
-#         id
-#       }
-#       totalNumberOfActiveStreams
-#       totalNetFlowRate
-#     }
-#   }
-# }
-# '''
-
-# # Realiza la solicitud POST al endpoint del subgrafo
-# response = requests.post(url, json={'query': query})
-
-# # Verifica si la solicitud fue exitosa
-# if response.status_code == 200:
-#     # Procesa la respuesta JSON
-#     data = response.json()
-#     if 'errors' in data:
-#         print('Errores en la respuesta:', data['errors'])
-#     elif 'data' in data and 'accounts' in data['data']:
-#         accounts = data['data']['accounts']
-#         if accounts:
-#             print('Datos de las cuentas:', accounts)
-#         else:
-#             print('No se encontraron cuentas.')
-#     else:
-#         print('La respuesta no contiene la estructura esperada:', data)
-# else:
-#     print(f'Error {response.status_code}: {response.text}')
-
-# queries.py
-
 from string import Template
 
 def query_account_by_id(account_id):
@@ -125,4 +63,32 @@ def query_channels_subscription_cost(subscription_cost):
     }
     ''').substitute(subscription_cost=subscription_cost)
 
-# Agrega más consultas según sea necesario
+def query_channels_subscribed(account_id):
+    return f'''
+    {{
+      accounts(
+          where: {{
+            inflows_: {{
+              sender: "{account_id}", 
+              token: "0x1eff3dd78f4a14abfa9fa66579bd3ce9e1b30529"
+            }}
+          }}
+        ) {{
+          id
+      }}
+    }}'''
+
+def query_channels_subscribed_new():
+    return '''
+    {
+      accounts(
+          where: {
+            inflows_: {
+              sender: "0x292f9892a9bc702dd3ca785e7287718da4479865", 
+              token: "0x1eff3dd78f4a14abfa9fa66579bd3ce9e1b30529"
+            }
+          }
+        ) {
+          id
+      }
+    }'''
