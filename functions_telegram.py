@@ -14,7 +14,7 @@ registered_status = {}  # To store registration status of users
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     chat_id = update.effective_chat.id
     if chat_id not in registered_status or not registered_status[chat_id]:
-        await update.message.reply_text("Welcome! Please enter your channel ID:", reply_markup=ReplyKeyboardRemove())
+        await update.message.reply_text("Welcome! Please enter your channel address:", reply_markup=ReplyKeyboardRemove())
         user_data[chat_id] = {'state': 'AWAITING_CHANNEL_ID'}
         registered_status[chat_id] = False
     else:
@@ -123,7 +123,7 @@ async def handle_channel_id(update: Update, context: ContextTypes.DEFAULT_TYPE, 
     user_data[chat_id]['channel_id'] = text
     user_data[chat_id]['state'] = 'AWAITING_ACCOUNT_ID'
     print(f"User state updated to: {user_data[chat_id]['state']}")
-    await update.message.reply_text("Please enter your account ID:")
+    await update.message.reply_text("Please enter your profile address:")
 
 # Handle account ID input
 async def handle_account_id(update: Update, context: ContextTypes.DEFAULT_TYPE, text: str):
@@ -170,7 +170,7 @@ async def handle_channel_subscription_menu(update: Update, context: ContextTypes
             account_id = user_data[chat_id]['account_id']
             await handle_unsubscribed_channels(update, context, account_id, subscription_cost)
         else:
-            await update.message.reply_text("Account ID not set.")
+            await update.message.reply_text("Profile address not set.")
             await show_user_info_menu(update, context)
     elif text == 'Back':
         await show_general_info_menu(update, context)
@@ -183,8 +183,9 @@ async def handle_unsubscribed_channels(update: Update, context: ContextTypes.DEF
     try:
         unsubscribed_channels = functions.get_unsubscribed_channels(account_id, subscription_cost)
         if isinstance(unsubscribed_channels, list):
-            limited_channels = unsubscribed_channels[:50]
-            message = f"Unsubscribed channels with subscription cost {subscription_cost}:\n" + "\n".join(limited_channels)
+            limited_channels = unsubscribed_channels[:5]
+            message = f"Unsubscribed channels with subscription cost {subscription_cost}:\n"
+            message += "\n".join([f"https://www.alfafrens.com/channel/{channel}" for channel in limited_channels])
             await update.message.reply_text(message)
         else:
             await update.message.reply_text(f"No unsubscribed channels found with subscription cost {subscription_cost}.")
@@ -221,7 +222,7 @@ async def handle_account_option(update: Update, context: ContextTypes.DEFAULT_TY
         account_id = user_data[chat_id]['account_id']
         await account_information(update, context, account_id)
     else:
-        await update.message.reply_text("Account ID not set.")
+        await update.message.reply_text("Profile address not set.")
         await show_user_info_menu(update, context)
 
 # Account information function
@@ -241,7 +242,6 @@ async def account_information(update: Update, context: ContextTypes.DEFAULT_TYPE
 
 # Search degen price
 async def search_degen_price(update: Update, context: ContextTypes.DEFAULT_TYPE):
-
     try:
         degen_price = await functions.obtain_degen_price() # Attempt to fetch the current price of Ethereum
         mensaje = f"Actual Degen price: ${degen_price} USD"
@@ -250,20 +250,8 @@ async def search_degen_price(update: Update, context: ContextTypes.DEFAULT_TYPE)
         await update.message.reply_text(f"Error obtaining degen price: {e}")
     await show_main_menu(update, context)
 
+# Search gas price
 async def search_gas_price(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """
-    Asynchronously retrieves and sends the current price of Gas to the user.
-
-    This function is triggered when a user requests the current price of Gas.
-    It fetches the latest price through the 'functions.obtain_gas_price' function and
-    sends it to the user. If there is an error during the fetching process, the
-    function handles it and informs the user.
-
-    The function attempts to:
-    - Fetch the current price of Gas.
-    - Format and send the price to the user.
-    - Handle any exceptions that occur during the process.
-    """
     try:
         gas_price = functions.obtain_gas_price(w3) / 10e8 # Attempt to fetch the current gas price
         message = f"Gas base fee: {gas_price} GWEI"
@@ -285,7 +273,7 @@ async def set_bot_commands(application):
         BotCommand(command="/start", description="Start the bot"),
         BotCommand(command="/price", description="Returns the current Degen price"),
         BotCommand(command="/gwei", description="Returns the current base fee"),
-        BotCommand(command="/configuration", description="Update your channel and account IDs")
+        BotCommand(command="/configuration", description="Update your channel and profile address")
     ]
     await application.bot.set_my_commands(commands)
 

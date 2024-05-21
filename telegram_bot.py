@@ -16,6 +16,8 @@ async def main():
     application = ApplicationBuilder().token(os.getenv('TELEGRAM_TOKEN')).build()
 
     application.add_handler(CommandHandler("start", functions_telegram.start))
+    application.add_handler(CommandHandler("price", functions_telegram.search_degen_price))
+    application.add_handler(CommandHandler("gwei", functions_telegram.search_gas_price))
     application.add_handler(CommandHandler("configuration", functions_telegram.configuration))
     application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, functions_telegram.handle_text))
 

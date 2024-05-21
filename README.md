@@ -51,14 +51,7 @@ potbyr-Tiqwi5-nymhix
 
 
 ```shell
-nohup python3 -u copy_trading.py > /dev/null 2>&1 &
-nohup python3 -u token_sells.py > /dev/null 2>&1 &
-nohup python3 -u wallet_analyzer.py > /dev/null 2>&1 &
-nohup python3 -u wallet_analyzer_sheet.py > /dev/null 2>&1 &
-nohup python3 -u sell_snipper_bot.py > /dev/null 2>&1 &
-nohup python3 -u ondemand_tracker.py > /dev/null 2>&1 &
-nohup python3 -u daily_wallet_balance.py > /dev/null 2>&1 &
-nohup python3 -u disperse_app_tracker.py > /dev/null 2>&1 &
+nohup python3 -u telegram_bot.py > /dev/null 2>&1 &
 
 
 ps aux | grep 'copy_trading.py' # Search the process
