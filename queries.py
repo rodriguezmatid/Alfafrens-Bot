@@ -63,32 +63,65 @@ def query_channels_subscription_cost(subscription_cost):
     }
     ''').substitute(subscription_cost=subscription_cost)
 
-def query_channels_subscribed(account_id):
-    return f'''
-    {{
-      accounts(
-          where: {{
-            inflows_: {{
-              sender: "{account_id}", 
-              token: "0x1eff3dd78f4a14abfa9fa66579bd3ce9e1b30529"
-            }}
-          }}
-        ) {{
-          id
-      }}
-    }}'''
+# def query_channels_subscribed(account_id):
+#     return f'''
+#     {{
+#       accounts(
+#           where: {{
+#             inflows_: {{
+#               sender: "{account_id}", 
+#               token: "0x1eff3dd78f4a14abfa9fa66579bd3ce9e1b30529"
+#             }}
+#           }}
+#         ) {{
+#           id
+#       }}
+#     }}'''
 
-def query_channels_subscribed_new():
-    return '''
+def query_channels_subscribed(account_id):
+    print(account_id)
+    return Template('''
     {
       accounts(
           where: {
             inflows_: {
-              sender: "0x292f9892a9bc702dd3ca785e7287718da4479865", 
+              sender: "$account_id", 
               token: "0x1eff3dd78f4a14abfa9fa66579bd3ce9e1b30529"
             }
           }
         ) {
           id
       }
+    }''').substitute(account_id=account_id)
+
+def query_better_channels_to_follow_order_by_pay():
+    return '''
+    {
+      pools(orderBy: perUnitFlowRate, orderDirection: desc, where: {}) {
+          perUnitFlowRate
+          admin {
+            id
+            inflows(first: 1, orderBy: currentFlowRate, orderDirection: desc) {
+              currentFlowRate
+            }
+          }
+      }
     }'''
+
+def query_unsubscribed_channels(channel_id):
+    return Template('''
+    {
+      streams(
+          where: {receiver: "$channel_id", currentFlowRate: "0"}
+          orderBy: updatedAtBlockNumber
+          orderDirection: desc
+        ) {
+          sender {
+            id
+          }
+          flowUpdatedEvents {
+            flowOperator
+            totalAmountStreamedUntilTimestamp
+          }
+      }
+    }''').substitute(channel_id=channel_id)

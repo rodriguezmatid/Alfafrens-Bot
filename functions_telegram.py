@@ -14,7 +14,7 @@ registered_status = {}  # To store registration status of users
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     chat_id = update.effective_chat.id
     if chat_id not in registered_status or not registered_status[chat_id]:
-        await update.message.reply_text("Welcome! Please enter your channel address:", reply_markup=ReplyKeyboardRemove())
+        await update.message.reply_text("Welcome! Please enter your channel ID:", reply_markup=ReplyKeyboardRemove())
         user_data[chat_id] = {'state': 'AWAITING_CHANNEL_ID'}
         registered_status[chat_id] = False
     else:
@@ -52,7 +52,7 @@ async def show_user_info_menu(update: Update, context: ContextTypes.DEFAULT_TYPE
 async def show_general_info_menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
     chat_id = update.effective_chat.id
     user_data[chat_id]['state'] = 'GENERAL_INFO_MENU'
-    reply_keyboard = [['Channels', 'Others'],
+    reply_keyboard = [['Channels', 'Unsubscribed'],
                       ['Back']]
     markup = ReplyKeyboardMarkup(reply_keyboard, one_time_keyboard=True)
 
@@ -120,18 +120,20 @@ async def handle_channel_id(update: Update, context: ContextTypes.DEFAULT_TYPE, 
     chat_id = update.effective_chat.id
     if chat_id not in user_data:
         user_data[chat_id] = {}
-    user_data[chat_id]['channel_id'] = text
+    user_data[chat_id]['channel_id'] = text.lower()  # Convert to lowercase
     user_data[chat_id]['state'] = 'AWAITING_ACCOUNT_ID'
+    print(f"User {chat_id} - channel_id set to: {text.lower()}")
     print(f"User state updated to: {user_data[chat_id]['state']}")
-    await update.message.reply_text("Please enter your profile address:")
+    await update.message.reply_text("Please enter your account ID:")
 
 # Handle account ID input
 async def handle_account_id(update: Update, context: ContextTypes.DEFAULT_TYPE, text: str):
     chat_id = update.effective_chat.id
     if chat_id not in user_data:
         user_data[chat_id] = {}
-    user_data[chat_id]['account_id'] = text
+    user_data[chat_id]['account_id'] = text.lower()  # Convert to lowercase
     registered_status[chat_id] = True
+    print(f"User {chat_id} - account_id set to: {text.lower()}")
     print(f"User registration status updated to: {registered_status[chat_id]}")
     await update.message.reply_text("Thank you! You can now use the bot.")
     await show_main_menu(update, context)
@@ -153,9 +155,13 @@ async def handle_general_info_menu(update: Update, context: ContextTypes.DEFAULT
     chat_id = update.effective_chat.id
     if text == 'Channels':
         await show_channel_subscription_menu(update, context)
-    elif text == 'Others':
-        await update.message.reply_text("No other information available at this moment.")
-        await show_general_info_menu(update, context)
+    elif text == 'Unsubscribed':
+        if 'channel_id' in user_data[chat_id]:
+            channel_id = user_data[chat_id]['channel_id']
+            await handle_unsubscribed_channels_with_matching_flow_operator(update, context, channel_id)
+        else:
+            await update.message.reply_text("Channel ID not set.")
+            await show_general_info_menu(update, context)
     elif text == 'Back':
         await show_main_menu(update, context)
     else:
@@ -170,7 +176,7 @@ async def handle_channel_subscription_menu(update: Update, context: ContextTypes
             account_id = user_data[chat_id]['account_id']
             await handle_unsubscribed_channels(update, context, account_id, subscription_cost)
         else:
-            await update.message.reply_text("Profile address not set.")
+            await update.message.reply_text("Account ID not set.")
             await show_user_info_menu(update, context)
     elif text == 'Back':
         await show_general_info_menu(update, context)
@@ -193,13 +199,27 @@ async def handle_unsubscribed_channels(update: Update, context: ContextTypes.DEF
         await update.message.reply_text(f"Error fetching unsubscribed channels: {e}")
     await show_channel_subscription_menu(update, context)
 
+# Handle unsubscribed channels with matching flow operator
+async def handle_unsubscribed_channels_with_matching_flow_operator(update: Update, context: ContextTypes.DEFAULT_TYPE, channel_id):
+    chat_id = update.effective_chat.id
+    try:
+        unsubscribed_channels = functions.get_unsubscribed_channels_with_matching_flow_operator(channel_id)
+        if isinstance(unsubscribed_channels, list):
+            limited_channels = unsubscribed_channels[:5]
+            message = f"Unsubscribed channels:\n"
+            message += "\n".join([f"https://www.alfafrens.com/profile/{channel}" for channel in limited_channels])
+            await update.message.reply_text(message)
+        else:
+            await update.message.reply_text(f"No unsubscribed channels found with matching flow operator.")
+    except Exception as e:
+        await update.message.reply_text(f"Error fetching unsubscribed channels with matching flow operator: {e}")
+    await show_general_info_menu(update, context)
+
 # Handle channel option
 async def handle_channel_option(update: Update, context: ContextTypes.DEFAULT_TYPE):
     chat_id = update.effective_chat.id
     if 'channel_id' in user_data[chat_id]:
         channel_id = user_data[chat_id]['channel_id']
-        # Call the function you need here, e.g., functions.get_account_by_id(channel_id)
-        # Assuming functions.get_account_by_id(channel_id) returns some value
         result = functions.get_account_by_id(channel_id)
         number_of_subscribers = result[0]
         net_flow_rate = result[1]
@@ -222,7 +242,7 @@ async def handle_account_option(update: Update, context: ContextTypes.DEFAULT_TY
         account_id = user_data[chat_id]['account_id']
         await account_information(update, context, account_id)
     else:
-        await update.message.reply_text("Profile address not set.")
+        await update.message.reply_text("Account ID not set.")
         await show_user_info_menu(update, context)
 
 # Account information function
@@ -244,7 +264,7 @@ async def account_information(update: Update, context: ContextTypes.DEFAULT_TYPE
 async def search_degen_price(update: Update, context: ContextTypes.DEFAULT_TYPE):
     try:
         degen_price = await functions.obtain_degen_price() # Attempt to fetch the current price of Ethereum
-        mensaje = f"Actual Degen price: ${degen_price} USD"
+        mensaje = f"Current Degen price: ${degen_price} USD"
         await update.message.reply_text(mensaje)
     except Exception as e:
         await update.message.reply_text(f"Error obtaining degen price: {e}")
@@ -273,8 +293,6 @@ async def set_bot_commands(application):
         BotCommand(command="/start", description="Start the bot"),
         BotCommand(command="/price", description="Returns the current Degen price"),
         BotCommand(command="/gwei", description="Returns the current base fee"),
-        BotCommand(command="/configuration", description="Update your channel and profile address")
+        BotCommand(command="/configuration", description="Update your channel and account IDs")
     ]
     await application.bot.set_my_commands(commands)
-
-

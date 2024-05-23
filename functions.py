@@ -1,5 +1,5 @@
 import requests, pandas as pd, os, dotenv
-from queries import query_account_by_id, query_all_accounts, query_channels_subscription_cost, query_channels_subscribed, query_channels_subscribed_new
+from queries import query_account_by_id, query_all_accounts, query_channels_subscription_cost, query_channels_subscribed, query_better_channels_to_follow_order_by_pay, query_unsubscribed_channels
 from web3 import Web3
 dotenv.load_dotenv()
 
@@ -66,6 +66,7 @@ def get_channels_subscription_cost(subscription_cost_input):
 # Function to get channels subscribed by an account
 def get_channels_subscribed(account_id):
     query = query_channels_subscribed(account_id)
+    print(query)
     data = run_query(query)
     
     if data and 'accounts' in data:
@@ -77,10 +78,13 @@ def get_channels_subscribed(account_id):
 
 def get_unsubscribed_channels(account_id, subscription_cost_input):
     # Get channels by subscription cost
-    cost_channels = get_channels_subscription_cost(subscription_cost_input)
+    # cost_channels = get_channels_subscription_cost(subscription_cost_input)
+    cost_channels = get_better_channels_to_follow(subscription_cost_input)
+    print(cost_channels)
     
     # Get channels subscribed by account
     subscribed_channels = get_channels_subscribed(account_id)
+    print(subscribed_channels)
     
     # Ensure both results are lists
     if not isinstance(cost_channels, list):
@@ -130,3 +134,65 @@ async def obtain_degen_price():
     except Exception as e:
         # Raising an exception if the HTTP request fails or the response cannot be parsed
         raise Exception(f"Error fetching Degen price: {e}")
+
+def get_better_channels_to_follow(subscription_cost_input):
+    # Mapear el costo de suscripción a un valor específico
+    if subscription_cost_input == 500:
+        subscription_cost = '190258751902587'
+    elif subscription_cost_input == 1000:
+        subscription_cost = '380517503805175'
+    else:
+        subscription_cost = '570776255707762'
+    # print(f"Subscription cost input: {subscription_cost_input}, mapped cost: {subscription_cost}")
+    # Definir la nueva query
+    query = query_better_channels_to_follow_order_by_pay()
+    data = run_query(query)
+    
+    if data and 'pools' in data:
+        pools = data['pools']
+        # Filtrar las cuentas según el criterio de currentFlowRate
+        filtered_accounts = []
+        for pool in pools:
+            for inflow in pool['admin']['inflows']:
+                # print("original", inflow['currentFlowRate'])
+                if inflow['currentFlowRate'] == subscription_cost:
+                    filtered_accounts.append(pool['admin']['id'])
+        
+        if filtered_accounts:
+            # print(f"Filtered accounts: {filtered_accounts}")
+            return filtered_accounts
+        else:
+            return 'No accounts found with the given subscription cost.'
+    else:
+        return 'No accounts found.'
+
+# Función para obtener los IDs de los canales desuscritos donde flowOperator es igual al sender
+def get_unsubscribed_channels_with_matching_flow_operator(channel_id):
+    query = query_unsubscribed_channels(channel_id)
+    data = run_query(query)
+    
+    if data and 'streams' in data:
+        streams = data['streams']
+        matching_ids = []
+        
+        for stream in streams:
+            flow_operator_counts = {}
+            for event in stream['flowUpdatedEvents']:
+                flow_operator = event['flowOperator']
+                if flow_operator in flow_operator_counts:
+                    flow_operator_counts[flow_operator] += 1
+                else:
+                    flow_operator_counts[flow_operator] = 1
+            
+            # Verificar si hay algún flowOperator que aparezca más de una vez
+            for flow_operator, count in flow_operator_counts.items():
+                if count > 1:
+                    matching_ids.append(stream['sender']['id'])
+                    break
+        
+        if matching_ids:
+            return matching_ids
+        else:
+            return 'No unsubscribed channels found with matching flow operator.'
+    else:
+        return 'No unsubscribed channels found.'
