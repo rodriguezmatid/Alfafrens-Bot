@@ -2,88 +2,34 @@ from telegram import Update, ReplyKeyboardMarkup, ReplyKeyboardRemove, BotComman
 from telegram.ext import ApplicationBuilder, CommandHandler, ContextTypes, MessageHandler, filters
 import os, dotenv, functions, requests, asyncio
 from web3 import Web3
+from apscheduler.schedulers.asyncio import AsyncIOScheduler
+from global_vars import user_data, registered_status, price_alert_jobs
+
+from menu_function_telegram import (
+    start,
+    show_main_menu,
+    show_user_info_menu,
+    show_general_info_menu,
+    show_channel_subscription_menu,
+    show_settings_menu,  # Actualizado
+    show_price_alerts_menu,
+    show_frequency_menu
+)
 
 dotenv.load_dotenv()
 rpc_url = os.environ['BASE']
 w3 = Web3(Web3.HTTPProvider(rpc_url))
-
-user_data = {}  # To store user data temporarily; use persistent storage for real applications
-registered_status = {}  # To store registration status of users
-
-# Start command handler
-async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    chat_id = update.effective_chat.id
-    if chat_id not in registered_status or not registered_status[chat_id]:
-        await update.message.reply_text("Welcome! Please enter your channel ID:", reply_markup=ReplyKeyboardRemove())
-        user_data[chat_id] = {'state': 'AWAITING_CHANNEL_ID'}
-        registered_status[chat_id] = False
-    else:
-        await show_main_menu(update, context)
-
-# Show main menu
-async def show_main_menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    chat_id = update.effective_chat.id
-    user_data[chat_id]['state'] = 'MAIN_MENU'
-    reply_keyboard = [['User information', 'General information'],
-                      ['Degen price', 'Gas price']]
-    markup = ReplyKeyboardMarkup(reply_keyboard, one_time_keyboard=True)
-
-    await update.message.reply_text(
-        "What do you want to do?",
-        reply_markup=markup
-    )
-
-# Show user info menu
-async def show_user_info_menu(update: Update, context: ContextTypes.DEFAULT_TYPE, show_channel=True):
-    chat_id = update.effective_chat.id
-    user_data[chat_id]['state'] = 'USER_INFO_MENU'
-    reply_keyboard = [['Account'],
-                      ['Back']]
-    if show_channel:
-        reply_keyboard.insert(0, ['Channel'])
-    markup = ReplyKeyboardMarkup(reply_keyboard, one_time_keyboard=True)
-
-    await update.message.reply_text(
-        "Select an option:",
-        reply_markup=markup
-    )
-
-# Show general info menu
-async def show_general_info_menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    chat_id = update.effective_chat.id
-    user_data[chat_id]['state'] = 'GENERAL_INFO_MENU'
-    reply_keyboard = [['Channels', 'Unsubscribed'],
-                      ['Back']]
-    markup = ReplyKeyboardMarkup(reply_keyboard, one_time_keyboard=True)
-
-    await update.message.reply_text(
-        "Select an option:",
-        reply_markup=markup
-    )
-
-# Show channel subscription menu
-async def show_channel_subscription_menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    chat_id = update.effective_chat.id
-    user_data[chat_id]['state'] = 'CHANNEL_SUBSCRIPTION_MENU'
-    reply_keyboard = [['500', '1000', '1500'],
-                      ['Back']]
-    markup = ReplyKeyboardMarkup(reply_keyboard, one_time_keyboard=True)
-
-    await update.message.reply_text(
-        "Select a subscription cost:",
-        reply_markup=markup
-    )
+scheduler = AsyncIOScheduler()
+scheduler.start()
 
 # Handle text messages
 async def handle_text(update: Update, context: ContextTypes.DEFAULT_TYPE):
     chat_id = update.effective_chat.id
     text = update.message.text
 
-    print(f"Received text: {text}")  # Debugging message
+    print(f"Received text: {text}")
 
     if chat_id in user_data and 'state' in user_data[chat_id] and not registered_status.get(chat_id, False):
-        print("1er menu")
-        print(f"User state: {user_data[chat_id]['state']}")
         if user_data[chat_id]['state'] in ['AWAITING_CHANNEL_ID', 'AWAITING_ACCOUNT_ID']:
             if user_data[chat_id]['state'] == 'AWAITING_CHANNEL_ID':
                 await handle_channel_id(update, context, text)
@@ -92,15 +38,18 @@ async def handle_text(update: Update, context: ContextTypes.DEFAULT_TYPE):
         else:
             await show_main_menu(update, context)
     elif registered_status.get(chat_id, False):
-        print("2do menu")
-        if chat_id in user_data:
-            print(f"User state: {user_data[chat_id]['state']}")
         if user_data[chat_id]['state'] == 'USER_INFO_MENU':
             await handle_user_info_menu(update, context, text)
         elif user_data[chat_id]['state'] == 'GENERAL_INFO_MENU':
             await handle_general_info_menu(update, context, text)
         elif user_data[chat_id]['state'] == 'CHANNEL_SUBSCRIPTION_MENU':
             await handle_channel_subscription_menu(update, context, text)
+        elif user_data[chat_id]['state'] == 'SETTINGS_MENU':  # Actualizado
+            await handle_settings_menu(update, context, text)  # Actualizado
+        elif user_data[chat_id]['state'] == 'PRICE_ALERTS_MENU':
+            await handle_price_alerts_menu(update, context, text)
+        elif user_data[chat_id]['state'] == 'FREQUENCY_MENU':
+            await handle_frequency_menu(update, context, text)
         else:
             if text == 'User information':
                 await show_user_info_menu(update, context)
@@ -110,10 +59,65 @@ async def handle_text(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 await search_degen_price(update, context)
             elif text == 'Gas price':
                 await search_gas_price(update, context)
+            elif text == 'Settings':  # Actualizado
+                await show_settings_menu(update, context)  # Actualizado
             else:
                 await show_main_menu(update, context)
     else:
         await start(update, context)
+# Handle configuration menu options
+async def handle_settings_menu(update: Update, context: ContextTypes.DEFAULT_TYPE, text: str):
+    chat_id = update.effective_chat.id
+    if text == 'Price Alerts':
+        await show_price_alerts_menu(update, context)
+    elif text == 'Gas Alerts':
+        # Aquí puedes agregar la lógica para manejar las alertas de gas
+        await update.message.reply_text("Gas alerts settings not implemented yet.")
+        await show_settings_menu(update, context)
+    elif text == 'Back':
+        await show_main_menu(update, context)
+    else:
+        await show_settings_menu(update, context)
+
+# Handle price alerts menu options
+async def handle_price_alerts_menu(update: Update, context: ContextTypes.DEFAULT_TYPE, text: str):
+    chat_id = update.effective_chat.id
+    if text == 'ON':
+        await show_frequency_menu(update, context)
+    elif text == 'OFF':
+        # Cancel existing job if it exists
+        if chat_id in price_alert_jobs:
+            price_alert_jobs[chat_id].remove()
+            del price_alert_jobs[chat_id]
+            await update.message.reply_text("Price alerts turned off.")
+        await show_settings_menu(update, context)
+    elif text == 'Back':
+        await show_settings_menu(update, context)
+    else:
+        await show_price_alerts_menu(update, context)
+
+# Handle frequency menu options
+async def handle_frequency_menu(update: Update, context: ContextTypes.DEFAULT_TYPE, text: str):
+    chat_id = update.effective_chat.id
+    frequency_map = {
+        '2 hours': 120,
+        '6 hours': 360,
+        '24 hours': 1440
+    }
+    if text in frequency_map:
+        frequency = frequency_map[text]
+        # Cancel existing job if it exists
+        if chat_id in price_alert_jobs:
+            price_alert_jobs[chat_id].remove()
+        # Schedule new job
+        job = scheduler.add_job(send_price_alert, 'interval', minutes=frequency, args=[update, context])
+        price_alert_jobs[chat_id] = job
+        await update.message.reply_text(f"Price alerts set to every {text}.")
+        await show_settings_menu(update, context)
+    elif text == 'Back':
+        await show_price_alerts_menu(update, context)
+    else:
+        await show_frequency_menu(update, context)
 
 # Handle channel ID input
 async def handle_channel_id(update: Update, context: ContextTypes.DEFAULT_TYPE, text: str):
@@ -279,6 +283,16 @@ async def search_gas_price(update: Update, context: ContextTypes.DEFAULT_TYPE):
     except Exception as e:
         await update.message.reply_text(f"Error obtaining gas price: {e}")
     await show_main_menu(update, context)
+
+# Send price alert
+async def send_price_alert(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    chat_id = update.effective_chat.id
+    try:
+        degen_price = await functions.obtain_degen_price() # Attempt to fetch the current price of Degen (ETH)
+        mensaje = f"Current Degen price: ${degen_price} USD"
+        await context.bot.send_message(chat_id=chat_id, text=mensaje)
+    except Exception as e:
+        await context.bot.send_message(chat_id=chat_id, text=f"Error obtaining degen price: {e}")
 
 # Configuration command handler
 async def configuration(update: Update, context: ContextTypes.DEFAULT_TYPE):

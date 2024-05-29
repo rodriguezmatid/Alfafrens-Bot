@@ -51,10 +51,10 @@ potbyr-Tiqwi5-nymhix
 
 
 ```shell
-nohup python3 -u telegram_bot.py > /dev/null 2>&1 &
+nohup python3 -u telegram_bot_alfafrens.py > /dev/null 2>&1 &
 
 
-ps aux | grep 'copy_trading.py' # Search the process
+ps aux | grep 'telegram_bot_HIB.py' # Search the process
 ps aux | grep 'token_sells.py' # Search the process
 ps aux | grep 'wallet_analyzer.py' # Search the process
 ps aux | grep 'wallet_analyzer_sheet.py' # Search the process
