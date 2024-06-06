@@ -112,16 +112,17 @@ def query_unsubscribed_channels(channel_id):
     return Template('''
     {
       streams(
-          where: {receiver: "$channel_id", currentFlowRate: "0"}
-          orderBy: updatedAtBlockNumber
-          orderDirection: desc
-        ) {
-          sender {
-            id
-          }
-          flowUpdatedEvents {
-            flowOperator
-            totalAmountStreamedUntilTimestamp
-          }
+        where: {receiver: "0xfe5b79144afeb94912d149c192b162530de5561d", currentFlowRate: "0"}
+        orderBy: updatedAtBlockNumber
+        orderDirection: desc
+      ) {
+        sender {
+          id
+        }
+        flowUpdatedEvents {
+          flowOperator
+          totalAmountStreamedUntilTimestamp
+        }
+        updatedAtTimestamp
       }
     }''').substitute(channel_id=channel_id)

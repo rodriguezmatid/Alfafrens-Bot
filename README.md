@@ -54,6 +54,7 @@ potbyr-Tiqwi5-nymhix
 nohup python3 -u telegram_bot_alfafrens.py > /dev/null 2>&1 &
 
 
+ps aux | grep 'telegram_bot.py' # Search the process
 ps aux | grep 'telegram_bot_HIB.py' # Search the process
 ps aux | grep 'token_sells.py' # Search the process
 ps aux | grep 'wallet_analyzer.py' # Search the process

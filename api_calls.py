@@ -23,12 +23,15 @@ def user_information(fid):
 
     payload={}
     headers = {
-    'Accept': 'application/json'
+        'Accept': 'application/json'
     }
 
     response = requests.request("GET", url, headers=headers, data=payload)
 
-    print(response.text)
+    if response.status_code == 200:
+        return response.text
+    else:
+        raise Exception(f"API request failed with status code {response.status_code}")
 
 # Gives you information about the channels that the input FID is subscribed
 def subscribed_channels_information(fid):
@@ -59,14 +62,18 @@ def subscribed_channels_information(fid):
 def channel_information(channel_address):
     url = f"https://alfafrens.com/api/v0/getChannel?channelAddress={channel_address}"
 
-    payload={}
+    payload = {}
     headers = {
-    'Accept': 'application/json'
+        'Accept': 'application/json'
     }
 
     response = requests.request("GET", url, headers=headers, data=payload)
 
-    print(response.text)
+    if response.status_code == 200:
+        return response.text
+    else:
+        raise Exception(f"API request failed with status code {response.status_code}")
+
 
 # Gives detailed channel information such as subscribers and stakes
 def detailed_channel_information(channel_address):
@@ -80,3 +87,6 @@ def detailed_channel_information(channel_address):
     response = requests.request("GET", url, headers=headers, data=payload)
 
     print(response.text)
+
+# user_information(354894)
+# channel_information("0xfe5b79144afeb94912d149c192b162530de5561d")

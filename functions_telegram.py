@@ -1,9 +1,11 @@
 from telegram import Update, ReplyKeyboardMarkup, ReplyKeyboardRemove, BotCommand
 from telegram.ext import ApplicationBuilder, CommandHandler, ContextTypes, MessageHandler, filters
-import os, dotenv, functions, requests, asyncio
+import os, dotenv, functions, requests, asyncio, json
 from web3 import Web3
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from global_vars import user_data, registered_status, price_alert_jobs
+from functions import obtain_gas_price, get_unsubscribed_channels_with_timestamp
+from api_calls import user_information, channel_information
 
 from menu_function_telegram import (
     start,
@@ -13,7 +15,9 @@ from menu_function_telegram import (
     show_channel_subscription_menu,
     show_settings_menu,  # Actualizado
     show_price_alerts_menu,
-    show_frequency_menu
+    show_frequency_menu,
+    show_gas_alerts_menu,
+    show_unsubscribed_alerts_menu
 )
 
 dotenv.load_dotenv()
@@ -23,6 +27,7 @@ scheduler = AsyncIOScheduler()
 scheduler.start()
 
 # Handle text messages
+# Handle text messages
 async def handle_text(update: Update, context: ContextTypes.DEFAULT_TYPE):
     chat_id = update.effective_chat.id
     text = update.message.text
@@ -30,11 +35,21 @@ async def handle_text(update: Update, context: ContextTypes.DEFAULT_TYPE):
     print(f"Received text: {text}")
 
     if chat_id in user_data and 'state' in user_data[chat_id] and not registered_status.get(chat_id, False):
-        if user_data[chat_id]['state'] in ['AWAITING_CHANNEL_ID', 'AWAITING_ACCOUNT_ID']:
-            if user_data[chat_id]['state'] == 'AWAITING_CHANNEL_ID':
-                await handle_channel_id(update, context, text)
-            elif user_data[chat_id]['state'] == 'AWAITING_ACCOUNT_ID':
-                await handle_account_id(update, context, text)
+        if user_data[chat_id]['state'] == 'AWAITING_FID':
+            await handle_fid(update, context, text)
+        elif user_data[chat_id]['state'] == 'AWAITING_GAS_PRICE':
+            try:
+                gas_price = float(text)
+                user_data[chat_id]['gas_alert_price'] = gas_price
+                user_data[chat_id]['last_gas_alert'] = 0  # Inicializar la última alerta de gas
+                user_data[chat_id]['state'] = 'GAS_ALERT_ACTIVE'
+                print(f"Set gas alert for user {chat_id} at price {gas_price} ETH")
+                await update.message.reply_text(f"Gas alert set for {gas_price} ETH.")
+                await show_settings_menu(update, context)
+            except ValueError:
+                print(f"Invalid gas price entered by user {chat_id}: {text}")
+                await update.message.reply_text("Please enter a valid gas price.")
+                await show_gas_alerts_menu(update, context)
         else:
             await show_main_menu(update, context)
     elif registered_status.get(chat_id, False):
@@ -44,36 +59,97 @@ async def handle_text(update: Update, context: ContextTypes.DEFAULT_TYPE):
             await handle_general_info_menu(update, context, text)
         elif user_data[chat_id]['state'] == 'CHANNEL_SUBSCRIPTION_MENU':
             await handle_channel_subscription_menu(update, context, text)
-        elif user_data[chat_id]['state'] == 'SETTINGS_MENU':  # Actualizado
-            await handle_settings_menu(update, context, text)  # Actualizado
+        elif user_data[chat_id]['state'] == 'SETTINGS_MENU':
+            await handle_settings_menu(update, context, text)
         elif user_data[chat_id]['state'] == 'PRICE_ALERTS_MENU':
             await handle_price_alerts_menu(update, context, text)
+        elif user_data[chat_id]['state'] == 'GAS_ALERTS_MENU':
+            await handle_gas_alerts_menu(update, context, text)
         elif user_data[chat_id]['state'] == 'FREQUENCY_MENU':
             await handle_frequency_menu(update, context, text)
+        elif user_data[chat_id]['state'] == 'UNSUBSCRIBED_ALERTS_MENU':
+            await handle_unsubscribed_alerts_menu(update, context, text)
         else:
             if text == 'User information':
-                await show_user_info_menu(update, context)
+                await handle_channel_option(update, context)  # Mostrar la información del canal
+                await show_user_info_menu(update, context)  # Mostrar el menú con los botones adicionales
             elif text == 'General information':
                 await show_general_info_menu(update, context)
             elif text == 'Degen price':
                 await search_degen_price(update, context)
             elif text == 'Gas price':
                 await search_gas_price(update, context)
-            elif text == 'Settings':  # Actualizado
-                await show_settings_menu(update, context)  # Actualizado
+            elif text == 'Settings':
+                await show_settings_menu(update, context)
             else:
                 await show_main_menu(update, context)
     else:
         await start(update, context)
+
+async def send_welcome_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    chat_id = update.effective_chat.id
+    print(f"Sending welcome message to {chat_id}")  # Mensaje de depuración
+    welcome_message = (
+        "Welcome to the AlfaFren Bot!\n\n"
+        "Here are some of the features you can use:\n"
+        "- /start: Start the bot and register your details.\n"
+        "- /info: Get information about the bot and its features.\n"
+        "- Price Alerts: Get notified when the price of Degen or gas changes.\n"
+        "- User Information: View details about your channel and account.\n"
+        "- Settings: Configure your alerts and preferences.\n"
+        "- Unsubscribed Alerts: Get notified when someone unsubscribes from your channel.\n"
+    )
+    await update.message.reply_text(welcome_message)
+
+# # Function to return information about the bot
+# async def send_info_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
+#     info_message = (
+#         "AlfaFren Bot Information:\n\n"
+#         "Features:\n"
+#         "- /start: Start the bot and register your details.\n"
+#         "- /info: Get information about the bot and its features.\n"
+#         "- Price Alerts: Get notified when the price of Degen or gas changes.\n"
+#         "- User Information: View details about your channel and account.\n"
+#         "- Settings: Configure your alerts and preferences.\n"
+#         "- Unsubscribed Alerts: Get notified when someone unsubscribes from your channel.\n"
+#     )
+#     await update.message.reply_text(info_message)
+    
+async def handle_fid(update: Update, context: ContextTypes.DEFAULT_TYPE, fid: str):
+    chat_id = update.effective_chat.id
+    try:
+        user_info = user_information(fid)
+        if user_info:
+            user_info_json = json.loads(user_info)  # Parse JSON response
+            channel_id = user_info_json['channeladdress']
+            account_id = user_info_json['userAddress']
+            handle = user_info_json['handle']
+            user_data[chat_id] = {
+                'channel_id': channel_id,
+                'account_id': account_id,
+                'handle': handle,
+                'fid': fid,
+                'state': 'MAIN_MENU'
+            }
+            registered_status[chat_id] = True
+            await update.message.reply_text(f"Welcome {handle}! Your FID has been registered.")
+            await show_main_menu(update, context)
+        else:
+            await update.message.reply_text("No user information found for the provided FID.")
+            user_data[chat_id]['state'] = 'AWAITING_FID'
+    except Exception as e:
+        await update.message.reply_text(f"Error retrieving user information: {e}")
+        user_data[chat_id]['state'] = 'AWAITING_FID'
+
 # Handle configuration menu options
 async def handle_settings_menu(update: Update, context: ContextTypes.DEFAULT_TYPE, text: str):
     chat_id = update.effective_chat.id
     if text == 'Price Alerts':
         await show_price_alerts_menu(update, context)
     elif text == 'Gas Alerts':
-        # Aquí puedes agregar la lógica para manejar las alertas de gas
-        await update.message.reply_text("Gas alerts settings not implemented yet.")
-        await show_settings_menu(update, context)
+        await show_gas_alerts_menu(update, context)
+    elif text == 'Unsubscribed Alerts':
+        await show_unsubscribed_alerts_menu(update, context)
     elif text == 'Back':
         await show_main_menu(update, context)
     else:
@@ -119,6 +195,17 @@ async def handle_frequency_menu(update: Update, context: ContextTypes.DEFAULT_TY
     else:
         await show_frequency_menu(update, context)
 
+async def handle_unsubscribed_alerts(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    chat_id = update.effective_chat.id
+    if 'unsubscribed_alert' not in user_data[chat_id]:
+        user_data[chat_id]['unsubscribed_alert'] = True
+        await update.message.reply_text("Unsubscribed alerts have been turned ON.")
+    else:
+        user_data[chat_id]['unsubscribed_alert'] = not user_data[chat_id]['unsubscribed_alert']
+        status = "ON" if user_data[chat_id]['unsubscribed_alert'] else "OFF"
+        await update.message.reply_text(f"Unsubscribed alerts have been turned {status}.")
+    await show_settings_menu(update, context)
+
 # Handle channel ID input
 async def handle_channel_id(update: Update, context: ContextTypes.DEFAULT_TYPE, text: str):
     chat_id = update.effective_chat.id
@@ -143,15 +230,38 @@ async def handle_account_id(update: Update, context: ContextTypes.DEFAULT_TYPE, 
     await show_main_menu(update, context)
 
 # Handle user info menu options
+# Handle user info menu options
 async def handle_user_info_menu(update: Update, context: ContextTypes.DEFAULT_TYPE, text: str):
     chat_id = update.effective_chat.id
     if text == 'Channel':
-        await handle_channel_option(update, context)
+        await handle_channel_address(update, context)
     elif text == 'Account':
-        await handle_account_option(update, context)
+        await handle_account_address(update, context)
     elif text == 'Back':
         await show_main_menu(update, context)
     else:
+        await show_user_info_menu(update, context)
+
+# Handle channel address option
+async def handle_channel_address(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    chat_id = update.effective_chat.id
+    if 'channel_id' in user_data[chat_id]:
+        channel_id = user_data[chat_id]['channel_id']
+        await update.message.reply_text(f"Your channel address is: {channel_id}")
+        await show_user_info_menu(update, context)
+    else:
+        await update.message.reply_text("Channel ID not set.")
+        await show_user_info_menu(update, context)
+
+# Handle account address option
+async def handle_account_address(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    chat_id = update.effective_chat.id
+    if 'account_id' in user_data[chat_id]:
+        account_id = user_data[chat_id]['account_id']
+        await update.message.reply_text(f"Your account address is: {account_id}")
+        await show_user_info_menu(update, context)
+    else:
+        await update.message.reply_text("Account ID not set.")
         await show_user_info_menu(update, context)
 
 # Handle general info menu options
@@ -220,21 +330,55 @@ async def handle_unsubscribed_channels_with_matching_flow_operator(update: Updat
     await show_general_info_menu(update, context)
 
 # Handle channel option
+from api_calls import channel_information
+import json
+
+# Handle channel option
 async def handle_channel_option(update: Update, context: ContextTypes.DEFAULT_TYPE):
     chat_id = update.effective_chat.id
     if 'channel_id' in user_data[chat_id]:
         channel_id = user_data[chat_id]['channel_id']
-        result = functions.get_account_by_id(channel_id)
-        number_of_subscribers = result[0]
-        net_flow_rate = result[1]
-        title = "Channel information"
+        try:
+            channel_info = channel_information(channel_id)
+            
+            if channel_info:
+                channel_info_json = json.loads(channel_info)
+                number_of_subscribers = channel_info_json['numberOfSubscribers']
+                number_of_stakers = channel_info_json['numberOfStakers']
+                total_subscription_flow_rate = float(channel_info_json['totalSubscriptionFlowRate'])/1e18
+                total_subscription_inflow_amount = float(channel_info_json['totalSubscriptionInflowAmount'])/1e18
+                total_claimed = float(channel_info_json['totalClaimed'])/1e18
+                current_staked = float(channel_info_json['currentStaked'])/1e18
+                estimated_earnings_per_second = float(channel_info_json['estimatedEarningsPerSecond'])/1e18
+                income_to_stake_ratio = float(channel_info_json['incomeToStakeRatio'])/1e18
+                stake_to_income_ratio = float(channel_info_json['stakeToIncomeRatio'])/1e18
+                total_subscription_cashback_flow_rate = float(channel_info_json['totalSubscriptionCashbackFlowRate'])/1e18
+                total_subscription_cashback_flow_amount = float(channel_info_json['totalSubscriptionCashbackFlowAmount'])/1e18
+                title = channel_info_json['title']
 
-        message = f"{title}\n"
-        message += f"Number of subscribers: {number_of_subscribers}\n"
-        message += f"Net flow rate: {net_flow_rate}\n"
-        
-        await update.message.reply_text(message)
-        await show_user_info_menu(update, context, show_channel=False)
+                message = (
+                    f"Channel Information for {title}\n\n"
+                    f"Number of Subscribers: {number_of_subscribers}\n"
+                    f"Number of Stakers: {number_of_stakers}\n"
+                    f"Total Subscription Flow Rate: {total_subscription_flow_rate}\n"
+                    f"Total Subscription Inflow Amount: {total_subscription_inflow_amount}\n"
+                    f"Total Claimed: {total_claimed}\n"
+                    f"Current Staked: {current_staked}\n"
+                    f"Estimated Earnings Per Second: {estimated_earnings_per_second}\n"
+                    f"Income to Stake Ratio: {income_to_stake_ratio}\n"
+                    f"Stake to Income Ratio: {stake_to_income_ratio}\n"
+                    f"Total Subscription Cashback Flow Rate: {total_subscription_cashback_flow_rate}\n"
+                    f"Total Subscription Cashback Flow Amount: {total_subscription_cashback_flow_amount}\n"
+                )
+
+                await update.message.reply_text(message)
+                await show_user_info_menu(update, context)  # Mostrar el menú de información del usuario con los botones adicionales
+            else:
+                await update.message.reply_text("No channel information found.")
+                await show_user_info_menu(update, context)
+        except Exception as e:
+            await update.message.reply_text(f"Error retrieving channel information: {e}")
+            await show_user_info_menu(update, context)
     else:
         await update.message.reply_text("Channel ID not set.")
         await show_user_info_menu(update, context)
@@ -294,6 +438,91 @@ async def send_price_alert(update: Update, context: ContextTypes.DEFAULT_TYPE):
     except Exception as e:
         await context.bot.send_message(chat_id=chat_id, text=f"Error obtaining degen price: {e}")
 
+async def handle_gas_alerts_menu(update: Update, context: ContextTypes.DEFAULT_TYPE, text: str):
+    chat_id = update.effective_chat.id
+    if text == 'ON':
+        user_data[chat_id]['state'] = 'AWAITING_GAS_PRICE'
+        await update.message.reply_text("Please enter the gas price for your alert:")
+    elif text == 'OFF':
+        if chat_id in user_data and 'gas_alert_price' in user_data[chat_id]:
+            del user_data[chat_id]['gas_alert_price']
+            del user_data[chat_id]['last_gas_alert']
+        await update.message.reply_text("Gas alerts have been turned OFF.")
+        await show_settings_menu(update, context)
+    elif text == 'Back':
+        await show_settings_menu(update, context)
+    else:
+        await show_gas_alerts_menu(update, context)
+
+async def check_gas_price(bot):
+    try:
+        current_gas_price = obtain_gas_price(w3) / 10e8  # Obtener el precio del gas
+        # print(f"Current gas price: {current_gas_price} ETH")
+    except Exception as e:
+        print(f"Error obtaining gas price: {e}")
+        return
+
+    for chat_id, data in user_data.items():
+        if 'gas_alert_price' in data and 'last_gas_alert' in data:
+            gas_alert_price = data['gas_alert_price']
+            last_alert_time = data['last_gas_alert']
+            current_time = int(asyncio.get_event_loop().time())  # Obtener el tiempo actual
+            print(f"Checking alerts for user {chat_id}: gas_alert_price={gas_alert_price}, last_alert_time={last_alert_time}")
+
+            if current_gas_price < gas_alert_price and (current_time - last_alert_time) >= 60:
+                try:
+                    await bot.send_message(chat_id=chat_id, text=f"Gas price is below {gas_alert_price} ETH: {current_gas_price} ETH")
+                    user_data[chat_id]['last_gas_alert'] = current_time  # Actualizar el tiempo de la última alerta
+                    print(f"Alert sent to user {chat_id}")
+                except Exception as e:
+                    print(f"Error sending message to user {chat_id}: {e}")
+            else:
+                print(f"No alert sent for user {chat_id}: current_gas_price={current_gas_price}, gas_alert_price={gas_alert_price}, time_since_last_alert={current_time - last_alert_time}")
+
+async def check_gas_price_periodically(bot):
+    while True:
+        await check_gas_price(bot)
+        await asyncio.sleep(60)  # Check every 5 minutes
+
+async def check_unsubscribed_users_periodically(bot):
+    while True:
+        await check_unsubscribed_users(bot)
+        await asyncio.sleep(300)  # Check every 5 minutes
+
+async def check_unsubscribed_users(bot):
+    for chat_id, data in user_data.items():
+        if 'unsubscribed_alert' in data and data['unsubscribed_alert']:
+            if 'channel_id' in data:
+                channel_id = data['channel_id']
+                unsubscribed_users = get_unsubscribed_channels_with_timestamp(channel_id)
+                for user in unsubscribed_users:
+                    user_id = user['id']
+                    unsubscribed_time = int(user['timestamp'])
+                    if 'last_unsubscribed_alert' not in data or unsubscribed_time > data['last_unsubscribed_alert']:
+                        try:
+                            await bot.send_message(chat_id=chat_id, text=f"User {user_id} has unsubscribed from your channel.")
+                            user_data[chat_id]['last_unsubscribed_alert'] = unsubscribed_time
+                        except Exception as e:
+                            print(f"Error sending unsubscribed alert to {chat_id}: {e}")
+
+async def handle_unsubscribed_alerts_menu(update: Update, context: ContextTypes.DEFAULT_TYPE, text: str):
+    chat_id = update.effective_chat.id
+    if text == 'ON':
+        user_data[chat_id]['unsubscribed_alert'] = True
+        await update.message.reply_text("Unsubscribed alerts have been turned ON.")
+        user_data[chat_id]['state'] = 'SETTINGS_MENU'  # Actualizar estado
+        await show_settings_menu(update, context)
+    elif text == 'OFF':
+        user_data[chat_id]['unsubscribed_alert'] = False
+        await update.message.reply_text("Unsubscribed alerts have been turned OFF.")
+        user_data[chat_id]['state'] = 'SETTINGS_MENU'  # Actualizar estado
+        await show_settings_menu(update, context)
+    elif text == 'Back':
+        user_data[chat_id]['state'] = 'SETTINGS_MENU'  # Actualizar estado
+        await show_settings_menu(update, context)
+    else:
+        await show_unsubscribed_alerts_menu(update, context)
+
 # Configuration command handler
 async def configuration(update: Update, context: ContextTypes.DEFAULT_TYPE):
     chat_id = update.effective_chat.id
@@ -301,10 +530,10 @@ async def configuration(update: Update, context: ContextTypes.DEFAULT_TYPE):
     registered_status[chat_id] = False
     await update.message.reply_text("Please enter your channel ID to update:", reply_markup=ReplyKeyboardRemove())
 
-# Set bot commands for the command list
 async def set_bot_commands(application):
     commands = [
-        BotCommand(command="/start", description="Start the bot"),
+        BotCommand(command="/start", description="Start the bot and register your details"),
+        BotCommand(command="/info", description="Get information about the bot and its features"),
         BotCommand(command="/price", description="Returns the current Degen price"),
         BotCommand(command="/gwei", description="Returns the current base fee"),
         BotCommand(command="/configuration", description="Update your channel and account IDs")

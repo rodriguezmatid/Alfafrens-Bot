@@ -8,7 +8,12 @@ w3 = Web3(Web3.HTTPProvider(rpc_url))
 url = 'https://base-mainnet.subgraph.x.superfluid.dev/'
 
 def obtain_gas_price(web3):
-    return web3.eth.gas_price
+    try:
+        gas_price = web3.eth.gas_price
+        return gas_price
+    except Exception as e:
+        print(f"Error obtaining gas price: {e}")
+        return None
 
 # def search_gas_price():
 #     gas_price(w3)
@@ -196,3 +201,33 @@ def get_unsubscribed_channels_with_matching_flow_operator(channel_id):
             return 'No unsubscribed channels found with matching flow operator.'
     else:
         return 'No unsubscribed channels found.'
+
+def get_unsubscribed_channels_with_timestamp(channel_id):
+    query = query_unsubscribed_channels(channel_id)
+    data = run_query(query)
+    
+    if data and 'streams' in data:
+        streams = data['streams']
+        unsubscribed_users = []
+        
+        for stream in streams:
+            flow_operator_counts = {}
+            for event in stream['flowUpdatedEvents']:
+                flow_operator = event['flowOperator']
+                if flow_operator in flow_operator_counts:
+                    flow_operator_counts[flow_operator] += 1
+                else:
+                    flow_operator_counts[flow_operator] = 1
+            
+            # Verificar si hay algún flowOperator que aparezca más de una vez
+            for flow_operator, count in flow_operator_counts.items():
+                if count > 1:
+                    unsubscribed_users.append({
+                        'id': stream['sender']['id'],
+                        'timestamp': stream['updatedAtTimestamp']
+                    })
+                    break
+        
+        return unsubscribed_users if unsubscribed_users else []
+    else:
+        return []

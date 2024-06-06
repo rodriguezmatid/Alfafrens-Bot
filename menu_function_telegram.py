@@ -1,17 +1,17 @@
 from telegram import ReplyKeyboardMarkup, ReplyKeyboardRemove, Update
 from telegram.ext import ContextTypes
 from global_vars import user_data, registered_status, price_alert_jobs
-
+from message_handlers import send_welcome_message  # Importar desde el nuevo archivo
 
 # Assuming user_data and registered_status are defined elsewhere
 # Import them if they are not in this file
-
-# Start command handler
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     chat_id = update.effective_chat.id
+    print(f"User {chat_id} started the bot")  # Mensaje de depuración
     if chat_id not in registered_status or not registered_status[chat_id]:
-        await update.message.reply_text("Welcome! Please enter your channel ID:", reply_markup=ReplyKeyboardRemove())
-        user_data[chat_id] = {'state': 'AWAITING_CHANNEL_ID'}
+        await send_welcome_message(update, context)  # Enviar mensaje de bienvenida
+        await update.message.reply_text("Please enter your FID:", reply_markup=ReplyKeyboardRemove())
+        user_data[chat_id] = {'state': 'AWAITING_FID'}
         registered_status[chat_id] = False
     else:
         await show_main_menu(update, context)
@@ -21,7 +21,7 @@ async def show_main_menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
     chat_id = update.effective_chat.id
     user_data[chat_id]['state'] = 'MAIN_MENU'
     reply_keyboard = [['User information', 'General information'],
-                      ['Degen price', 'Gas price', 'Configuration']]
+                      ['Degen price', 'Gas price', 'Settings']]
     markup = ReplyKeyboardMarkup(reply_keyboard, one_time_keyboard=True)
 
     await update.message.reply_text(
@@ -30,13 +30,10 @@ async def show_main_menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
     )
 
 # Show user info menu
-async def show_user_info_menu(update: Update, context: ContextTypes.DEFAULT_TYPE, show_channel=True):
+async def show_user_info_menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
     chat_id = update.effective_chat.id
     user_data[chat_id]['state'] = 'USER_INFO_MENU'
-    reply_keyboard = [['Account'],
-                      ['Back']]
-    if show_channel:
-        reply_keyboard.insert(0, ['Channel'])
+    reply_keyboard = [['Channel', 'Account'], ['Back']]
     markup = ReplyKeyboardMarkup(reply_keyboard, one_time_keyboard=True)
 
     await update.message.reply_text(
@@ -74,7 +71,7 @@ async def show_channel_subscription_menu(update: Update, context: ContextTypes.D
 async def show_settings_menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
     chat_id = update.effective_chat.id
     user_data[chat_id]['state'] = 'SETTINGS_MENU'
-    reply_keyboard = [['Price Alerts', 'Gas Alerts', 'Back']]
+    reply_keyboard = [['Price Alerts', 'Gas Alerts', 'Unsubscribed Alerts', 'Back']]
     markup = ReplyKeyboardMarkup(reply_keyboard, one_time_keyboard=True)
 
     await update.message.reply_text(
@@ -103,5 +100,28 @@ async def show_frequency_menu(update: Update, context: ContextTypes.DEFAULT_TYPE
 
     await update.message.reply_text(
         "Select alert frequency:",
+        reply_markup=markup
+    )
+
+# Gas alerts menu
+async def show_gas_alerts_menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    chat_id = update.effective_chat.id
+    user_data[chat_id]['state'] = 'GAS_ALERTS_MENU'
+    reply_keyboard = [['ON', 'OFF', 'Back']]
+    markup = ReplyKeyboardMarkup(reply_keyboard, one_time_keyboard=True)
+
+    await update.message.reply_text(
+        "Gas alerts:",
+        reply_markup=markup
+    )
+
+async def show_unsubscribed_alerts_menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    chat_id = update.effective_chat.id
+    user_data[chat_id]['state'] = 'UNSUBSCRIBED_ALERTS_MENU'
+    reply_keyboard = [['ON', 'OFF', 'Back']]
+    markup = ReplyKeyboardMarkup(reply_keyboard, one_time_keyboard=True)
+
+    await update.message.reply_text(
+        "Unsubscribed alerts options:",
         reply_markup=markup
     )
