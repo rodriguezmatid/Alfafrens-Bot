@@ -1,6 +1,6 @@
 from telegram import Update, ReplyKeyboardMarkup, ReplyKeyboardRemove, BotCommand
 from telegram.ext import ApplicationBuilder, CommandHandler, ContextTypes, MessageHandler, filters
-import os, dotenv, functions, requests, asyncio, json
+import os, dotenv, functions, requests, asyncio, json, time
 from web3 import Web3
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from global_vars import user_data, registered_status, price_alert_jobs
@@ -17,7 +17,8 @@ from menu_function_telegram import (
     show_price_alerts_menu,
     show_frequency_menu,
     show_gas_alerts_menu,
-    show_unsubscribed_alerts_menu
+    show_unsubscribed_alerts_menu,
+    show_claim_alerts_menu
 )
 
 dotenv.load_dotenv()
@@ -69,6 +70,8 @@ async def handle_text(update: Update, context: ContextTypes.DEFAULT_TYPE):
             await handle_frequency_menu(update, context, text)
         elif user_data[chat_id]['state'] == 'UNSUBSCRIBED_ALERTS_MENU':
             await handle_unsubscribed_alerts_menu(update, context, text)
+        elif user_data[chat_id]['state'] == 'CLAIM_ALERTS_MENU':
+            await handle_claim_alerts_menu(update, context, text)
         else:
             if text == 'User information':
                 await handle_channel_option(update, context)  # Mostrar la información del canal
@@ -79,7 +82,7 @@ async def handle_text(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 await search_degen_price(update, context)
             elif text == 'Gas price':
                 await search_gas_price(update, context)
-            elif text == 'Settings':
+            elif text == 'Alerts':
                 await show_settings_menu(update, context)
             else:
                 await show_main_menu(update, context)
@@ -144,12 +147,14 @@ async def handle_fid(update: Update, context: ContextTypes.DEFAULT_TYPE, fid: st
 # Handle configuration menu options
 async def handle_settings_menu(update: Update, context: ContextTypes.DEFAULT_TYPE, text: str):
     chat_id = update.effective_chat.id
-    if text == 'Price Alerts':
+    if text == 'Price':
         await show_price_alerts_menu(update, context)
     elif text == 'Gas Alerts':
         await show_gas_alerts_menu(update, context)
-    elif text == 'Unsubscribed Alerts':
+    elif text == 'Unsubscribed':
         await show_unsubscribed_alerts_menu(update, context)
+    elif text == 'Claim':
+        await show_claim_alerts_menu(update, context)  # Redirigir al menú de Claim Alerts
     elif text == 'Back':
         await show_main_menu(update, context)
     else:
@@ -253,6 +258,39 @@ async def handle_channel_address(update: Update, context: ContextTypes.DEFAULT_T
         await update.message.reply_text("Channel ID not set.")
         await show_user_info_menu(update, context)
 
+# Handle Claim Alerts menu options
+async def handle_claim_alerts_menu(update: Update, context: ContextTypes.DEFAULT_TYPE, text: str):
+    chat_id = update.effective_chat.id
+
+    if text == 'ON':
+        user_data[chat_id]['claim_alerts_active'] = True
+        response = "Claim Alerts have been turned ON."
+    elif text == 'OFF':
+        user_data[chat_id]['claim_alerts_active'] = False
+        response = "Claim Alerts have been turned OFF."
+    else:
+        response = "Invalid option."
+
+    await update.message.reply_text(response)
+
+async def check_and_alert_claim_time(update, context, account_id):
+    try:
+        # Suponiendo que get_last_claim_info es la función correcta que devuelve los timestamps de los eventos de reclamación
+        pool_info = functions.get_last_claim_info(account_id)
+        if pool_info and all('distributionClaimedEvents' in member for member in pool_info):
+            max_timestamp = max(
+                int(event['timestamp']) 
+                for member in pool_info 
+                for event in member['distributionClaimedEvents']
+            )
+            current_time = int(time.time())
+            if (current_time - max_timestamp) > 79200:  # 22 hours in seconds
+                await update.message.reply_text("It's time to claim your rewards!")
+        else:
+            await update.message.reply_text("No claim events found.")
+    except Exception as e:
+        await update.message.reply_text(f"Error processing claim information: {str(e)}")
+
 # Handle account address option
 async def handle_account_address(update: Update, context: ContextTypes.DEFAULT_TYPE):
     chat_id = update.effective_chat.id
@@ -343,36 +381,37 @@ async def handle_channel_option(update: Update, context: ContextTypes.DEFAULT_TY
             
             if channel_info:
                 channel_info_json = json.loads(channel_info)
+
+                title = channel_info_json['title']
                 number_of_subscribers = channel_info_json['numberOfSubscribers']
                 number_of_stakers = channel_info_json['numberOfStakers']
-                total_subscription_flow_rate = float(channel_info_json['totalSubscriptionFlowRate'])/1e18
-                total_subscription_inflow_amount = float(channel_info_json['totalSubscriptionInflowAmount'])/1e18
-                total_claimed = float(channel_info_json['totalClaimed'])/1e18
-                current_staked = float(channel_info_json['currentStaked'])/1e18
-                estimated_earnings_per_second = float(channel_info_json['estimatedEarningsPerSecond'])/1e18
-                income_to_stake_ratio = float(channel_info_json['incomeToStakeRatio'])/1e18
-                stake_to_income_ratio = float(channel_info_json['stakeToIncomeRatio'])/1e18
-                total_subscription_cashback_flow_rate = float(channel_info_json['totalSubscriptionCashbackFlowRate'])/1e18
-                total_subscription_cashback_flow_amount = float(channel_info_json['totalSubscriptionCashbackFlowAmount'])/1e18
-                title = channel_info_json['title']
 
+                subscription_cost_input = int(channel_info_json['totalSubscriptionFlowRate'])/number_of_subscribers
+                if subscription_cost_input == 190258751902587:
+                    subscription_cost = 500
+                elif subscription_cost_input == 380517503805175:
+                    subscription_cost = 1000
+                else:
+                    subscription_cost = 1500
+                subscribers_income = number_of_subscribers * 0.25 * subscription_cost
+                # stake_to_income_ratio = (float(channel_info_json['stakeToIncomeRatio'])/1e11)*60*60*24*365/12
+                total_income = round(subscribers_income)
+                total_subscription_inflow_amount = round(float(channel_info_json['totalSubscriptionInflowAmount'])/1e18)
+                total_claimed = round(float(channel_info_json['totalClaimed'])/1e14)
+                current_staked = round(float(channel_info_json['currentStaked'])/1e14)
+                
                 message = (
-                    f"Channel Information for {title}\n\n"
-                    f"Number of Subscribers: {number_of_subscribers}\n"
-                    f"Number of Stakers: {number_of_stakers}\n"
-                    f"Total Subscription Flow Rate: {total_subscription_flow_rate}\n"
-                    f"Total Subscription Inflow Amount: {total_subscription_inflow_amount}\n"
-                    f"Total Claimed: {total_claimed}\n"
-                    f"Current Staked: {current_staked}\n"
-                    f"Estimated Earnings Per Second: {estimated_earnings_per_second}\n"
-                    f"Income to Stake Ratio: {income_to_stake_ratio}\n"
-                    f"Stake to Income Ratio: {stake_to_income_ratio}\n"
-                    f"Total Subscription Cashback Flow Rate: {total_subscription_cashback_flow_rate}\n"
-                    f"Total Subscription Cashback Flow Amount: {total_subscription_cashback_flow_amount}\n"
+                    f"📢 Channel Information for {title} 📢\n\n"
+                    f"👥 Number of subscribers: {number_of_subscribers}\n"
+                    f"🔒 Number of stakers: {number_of_stakers}\n"
+                    f"💰 Subscribers income: {total_income} DEGENx\n"
+                    f"📊 Volume: {total_subscription_inflow_amount} DEGENx\n"
+                    f"🤑 Total claimed: {total_claimed} ALFA\n"
+                    f"🔗 Current staked: {current_staked} ALFA\n"
                 )
 
                 await update.message.reply_text(message)
-                await show_user_info_menu(update, context)  # Mostrar el menú de información del usuario con los botones adicionales
+    
             else:
                 await update.message.reply_text("No channel information found.")
                 await show_user_info_menu(update, context)
@@ -412,7 +451,7 @@ async def account_information(update: Update, context: ContextTypes.DEFAULT_TYPE
 async def search_degen_price(update: Update, context: ContextTypes.DEFAULT_TYPE):
     try:
         degen_price = await functions.obtain_degen_price() # Attempt to fetch the current price of Ethereum
-        mensaje = f"Current Degen price: ${degen_price} USD"
+        mensaje = f"Current Degen price: ${degen_price:.3f} USD"
         await update.message.reply_text(mensaje)
     except Exception as e:
         await update.message.reply_text(f"Error obtaining degen price: {e}")
@@ -422,7 +461,7 @@ async def search_degen_price(update: Update, context: ContextTypes.DEFAULT_TYPE)
 async def search_gas_price(update: Update, context: ContextTypes.DEFAULT_TYPE):
     try:
         gas_price = functions.obtain_gas_price(w3) / 10e8 # Attempt to fetch the current gas price
-        message = f"Gas base fee: {gas_price} GWEI"
+        message = f"Gas base fee: {gas_price:.3f} GWEI"
         await update.message.reply_text(message)
     except Exception as e:
         await update.message.reply_text(f"Error obtaining gas price: {e}")
@@ -433,7 +472,7 @@ async def send_price_alert(update: Update, context: ContextTypes.DEFAULT_TYPE):
     chat_id = update.effective_chat.id
     try:
         degen_price = await functions.obtain_degen_price() # Attempt to fetch the current price of Degen (ETH)
-        mensaje = f"Current Degen price: ${degen_price} USD"
+        mensaje = f"Current Degen price: ${degen_price:.3f} USD"
         await context.bot.send_message(chat_id=chat_id, text=mensaje)
     except Exception as e:
         await context.bot.send_message(chat_id=chat_id, text=f"Error obtaining degen price: {e}")

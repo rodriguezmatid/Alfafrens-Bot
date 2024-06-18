@@ -63,23 +63,7 @@ def query_channels_subscription_cost(subscription_cost):
     }
     ''').substitute(subscription_cost=subscription_cost)
 
-# def query_channels_subscribed(account_id):
-#     return f'''
-#     {{
-#       accounts(
-#           where: {{
-#             inflows_: {{
-#               sender: "{account_id}", 
-#               token: "0x1eff3dd78f4a14abfa9fa66579bd3ce9e1b30529"
-#             }}
-#           }}
-#         ) {{
-#           id
-#       }}
-#     }}'''
-
 def query_channels_subscribed(account_id):
-    print(account_id)
     return Template('''
     {
       accounts(
@@ -126,3 +110,17 @@ def query_unsubscribed_channels(channel_id):
         updatedAtTimestamp
       }
     }''').substitute(channel_id=channel_id)
+
+def query_max_timestamp_claim(account_id):
+    return Template('''
+    {
+      poolMembers(where: {account: "$account_id"}) {
+        distributionClaimedEvents {
+          timestamp
+        }
+        account {
+          id
+        }
+      }
+    }
+    ''').substitute(account_id=account_id)

@@ -1,5 +1,5 @@
 import requests, pandas as pd, os, dotenv
-from queries import query_account_by_id, query_all_accounts, query_channels_subscription_cost, query_channels_subscribed, query_better_channels_to_follow_order_by_pay, query_unsubscribed_channels
+from queries import query_account_by_id, query_all_accounts, query_channels_subscription_cost, query_channels_subscribed, query_better_channels_to_follow_order_by_pay, query_unsubscribed_channels, query_max_timestamp_claim
 from web3 import Web3
 dotenv.load_dotenv()
 
@@ -231,3 +231,11 @@ def get_unsubscribed_channels_with_timestamp(channel_id):
         return unsubscribed_users if unsubscribed_users else []
     else:
         return []
+
+def get_last_claim_info(account_id):
+    query = query_max_timestamp_claim(account_id)
+    result = run_query(query)
+    if result:
+        return result['poolMembers']
+    else:
+        return None

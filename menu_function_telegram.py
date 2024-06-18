@@ -21,7 +21,7 @@ async def show_main_menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
     chat_id = update.effective_chat.id
     user_data[chat_id]['state'] = 'MAIN_MENU'
     reply_keyboard = [['User information', 'General information'],
-                      ['Degen price', 'Gas price', 'Settings']]
+                      ['Degen price', 'Gas price', 'Alerts']]
     markup = ReplyKeyboardMarkup(reply_keyboard, one_time_keyboard=True)
 
     await update.message.reply_text(
@@ -71,11 +71,11 @@ async def show_channel_subscription_menu(update: Update, context: ContextTypes.D
 async def show_settings_menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
     chat_id = update.effective_chat.id
     user_data[chat_id]['state'] = 'SETTINGS_MENU'
-    reply_keyboard = [['Price Alerts', 'Gas Alerts', 'Unsubscribed Alerts', 'Back']]
+    reply_keyboard = [['Price', 'Unsubscribed', 'Claim', 'Back']]
     markup = ReplyKeyboardMarkup(reply_keyboard, one_time_keyboard=True)
 
     await update.message.reply_text(
-        "Settings options:",
+        "Alerts options:",
         reply_markup=markup
     )
 
@@ -123,5 +123,16 @@ async def show_unsubscribed_alerts_menu(update: Update, context: ContextTypes.DE
 
     await update.message.reply_text(
         "Unsubscribed alerts options:",
+        reply_markup=markup
+    )
+
+async def show_claim_alerts_menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    chat_id = update.effective_chat.id
+    user_data[chat_id]['state'] = 'CLAIM_ALERTS_MENU'
+    reply_keyboard = [['ON', 'OFF', 'Back']]
+    markup = ReplyKeyboardMarkup(reply_keyboard, one_time_keyboard=True)
+
+    await update.message.reply_text(
+        "Claim Alerts Options:",
         reply_markup=markup
     )

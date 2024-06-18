@@ -89,4 +89,8 @@ def detailed_channel_information(channel_address):
     print(response.text)
 
 # user_information(354894)
-# channel_information("0xfe5b79144afeb94912d149c192b162530de5561d")
+# result = channel_information("0xfe5b79144afeb94912d149c192b162530de5561d")
+# print(result)
+# result = detailed_channel_information("0xfe5b79144afeb94912d149c192b162530de5561d")
+# print(result)
+# result = user_information(354894)
