@@ -264,30 +264,50 @@ async def handle_claim_alerts_menu(update: Update, context: ContextTypes.DEFAULT
 
     if text == 'ON':
         user_data[chat_id]['claim_alerts_active'] = True
-        response = "Claim Alerts have been turned ON."
+        response = "Claim Alerts have been turned ON. You will be notified to claim your rewards every 22 hours if needed."
+        # Inicia la tarea si aún no está activa
+        if 'claim_alert_task' not in user_data[chat_id]:
+            user_data[chat_id]['claim_alert_task'] = asyncio.create_task(check_and_alert_claim_time_periodically(update, context, chat_id))
     elif text == 'OFF':
         user_data[chat_id]['claim_alerts_active'] = False
         response = "Claim Alerts have been turned OFF."
+        # Cancela la tarea si está activa
+        if 'claim_alert_task' in user_data[chat_id]:
+            user_data[chat_id]['claim_alert_task'].cancel()
+            del user_data[chat_id]['claim_alert_task']
     else:
         response = "Invalid option."
 
     await update.message.reply_text(response)
+    await show_settings_menu(update, context)
+
+async def check_and_alert_claim_time_periodically(update, context, chat_id):
+    while user_data[chat_id]['claim_alerts_active']:
+        try:
+            account_id = user_data[chat_id]['account_id']
+            last_claimed_timestamp = functions.get_last_claim_info(account_id)
+            current_time = int(time.time())
+            if (current_time - int(last_claimed_timestamp)) > 79200:#79200:  # 22 hours in seconds
+                await update.message.reply_text("It's time to claim your rewards!")
+        except Exception as e:
+            await update.message.reply_text(f"Error processing claim information: {str(e)}")
+        await asyncio.sleep(79200)  # Espera 22 horas antes de comprobar de nuevo
 
 async def check_and_alert_claim_time(update, context, account_id):
     try:
-        # Suponiendo que get_last_claim_info es la función correcta que devuelve los timestamps de los eventos de reclamación
-        pool_info = functions.get_last_claim_info(account_id)
-        if pool_info and all('distributionClaimedEvents' in member for member in pool_info):
-            max_timestamp = max(
-                int(event['timestamp']) 
-                for member in pool_info 
-                for event in member['distributionClaimedEvents']
-            )
+        # La función get_last_claim_info ahora devuelve directamente el último timestamp de reclamación
+        last_claimed_timestamp = functions.get_last_claim_info(account_id)
+        
+        # Verificar que last_claimed_timestamp no sea un mensaje de error
+        if last_claimed_timestamp and last_claimed_timestamp.isdigit():
+            last_claimed_timestamp = int(last_claimed_timestamp)
             current_time = int(time.time())
-            if (current_time - max_timestamp) > 79200:  # 22 hours in seconds
+            if (current_time - last_claimed_timestamp) > 79200:  # 22 hours in seconds
                 await update.message.reply_text("It's time to claim your rewards!")
+            else:
+                await update.message.reply_text("No need to claim yet.")
         else:
-            await update.message.reply_text("No claim events found.")
+            await update.message.reply_text(last_claimed_timestamp)  # Muestra el mensaje de error de la función
     except Exception as e:
         await update.message.reply_text(f"Error processing claim information: {str(e)}")
 

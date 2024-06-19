@@ -78,6 +78,18 @@ def query_channels_subscribed(account_id):
       }
     }''').substitute(account_id=account_id)
 
+def query_last_claimed_timestamp(account_id):
+    # Usa la interpolación directa con `safe_substitute` para manejar de forma segura las variables
+    query_template = Template('''
+    query MyQuery {
+      user(id: "$id") {
+        lastClaimedTimestamp
+      }
+    }
+    ''')
+    query = query_template.safe_substitute(id=account_id)
+    return query
+
 def query_better_channels_to_follow_order_by_pay():
     return '''
     {

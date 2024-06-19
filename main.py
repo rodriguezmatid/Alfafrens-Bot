@@ -31,13 +31,9 @@ def main():
     # result = get_channels_subscription_cost(channel)
     # print(result)
     # # print("Data saved to 'tokens_ohcl.csv'")
-    account_id = "0x4af3d323fc28a8d72cbeb3bdcba44644d5aab2cb"  # Replace with the actual account ID
+    account_id = "0x292f9892A9Bc702dd3cA785E7287718dA4479865"  # Replace with the actual account ID
     result = get_last_claim_info(account_id)
     print(result)
-
-    result_2 = check_and_alert_claim_time(account_id)
-    print(result_2)
-
 
     # result = get_channels_subscribed(account_id)
     # print(len(result))

@@ -1,11 +1,12 @@
 import requests, pandas as pd, os, dotenv
-from queries import query_account_by_id, query_all_accounts, query_channels_subscription_cost, query_channels_subscribed, query_better_channels_to_follow_order_by_pay, query_unsubscribed_channels, query_max_timestamp_claim
+from queries import query_account_by_id, query_all_accounts, query_channels_subscription_cost, query_channels_subscribed, query_better_channels_to_follow_order_by_pay, query_unsubscribed_channels, query_max_timestamp_claim, query_last_claimed_timestamp
 from web3 import Web3
 dotenv.load_dotenv()
 
 rpc_url = os.environ['BASE']
 w3 = Web3(Web3.HTTPProvider(rpc_url))
 url = 'https://base-mainnet.subgraph.x.superfluid.dev/'
+url2 = 'https://api.goldsky.com/api/public/project_clsnd6xsoma5j012qepvucfpp/subgraphs/alfafrens/prod/gn'
 
 def obtain_gas_price(web3):
     try:
@@ -20,6 +21,22 @@ def obtain_gas_price(web3):
 
 def run_query(query):
     response = requests.post(url, json={'query': query})
+    if response.status_code == 200:
+        data = response.json()
+        if 'errors' in data:
+            print(f'Errores en la respuesta: {data["errors"]}')
+            return None
+        elif 'data' in data:
+            return data['data']
+        else:
+            print(f'La respuesta no contiene la estructura esperada: {data}')
+            return None
+    else:
+        print(f'Error {response.status_code}: {response.text}')
+        return None
+
+def run_query_2(query):
+    response = requests.post(url2, json={'query': query})
     if response.status_code == 200:
         data = response.json()
         if 'errors' in data:
@@ -233,9 +250,11 @@ def get_unsubscribed_channels_with_timestamp(channel_id):
         return []
 
 def get_last_claim_info(account_id):
-    query = query_max_timestamp_claim(account_id)
-    result = run_query(query)
-    if result:
-        return result['poolMembers']
+    query = query_last_claimed_timestamp(account_id)
+    data = run_query_2(query)
+
+    if data and 'user' in data and data['user'] is not None:
+            last_claimed_timestamp = data['user']['lastClaimedTimestamp']
+            return last_claimed_timestamp
     else:
-        return None
+        return 'No last claimed timestamp found for the given account.'
