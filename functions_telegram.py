@@ -27,6 +27,21 @@ w3 = Web3(Web3.HTTPProvider(rpc_url))
 scheduler = AsyncIOScheduler()
 scheduler.start()
 
+with open('./utils/cfa_contract.json', 'r') as f:
+    abi_cfa_contract = json.load(f)
+with open('./utils/gda_contract.json', 'r') as f:
+    abi_gda_contract = json.load(f)
+with open('./utils/super_degen.json', 'r') as f:
+    abi_super_degen = json.load(f)
+
+cfa_address = w3.to_checksum_address('0xcfA132E353cB4E398080B9700609bb008eceB125')
+gda_address = w3.to_checksum_address('0x6DA13Bde224A05a288748d857b9e7DDEffd1dE08')
+super_degen_address = w3.to_checksum_address('0x1eff3dd78f4a14abfa9fa66579bd3ce9e1b30529')
+
+cfa_contract = w3.eth.contract(address = cfa_address, abi = abi_cfa_contract)
+gda_contract = w3.eth.contract(address = gda_address, abi = abi_gda_contract)
+sdegen_contract = w3.eth.contract(address = super_degen_address, abi = abi_super_degen)
+
 # Handle text messages
 # Handle text messages
 async def handle_text(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -396,6 +411,7 @@ async def handle_channel_option(update: Update, context: ContextTypes.DEFAULT_TY
     chat_id = update.effective_chat.id
     if 'channel_id' in user_data[chat_id]:
         channel_id = user_data[chat_id]['channel_id']
+        user_address = user_data[chat_id]['account_id']
         try:
             channel_info = channel_information(channel_id)
             
@@ -415,19 +431,31 @@ async def handle_channel_option(update: Update, context: ContextTypes.DEFAULT_TY
                     subscription_cost = 1500
                 subscribers_income = number_of_subscribers * 0.25 * subscription_cost
                 # stake_to_income_ratio = (float(channel_info_json['stakeToIncomeRatio'])/1e11)*60*60*24*365/12
-                total_income = round(subscribers_income)
+                subscribers_income = round(subscribers_income)
                 total_subscription_inflow_amount = round(float(channel_info_json['totalSubscriptionInflowAmount'])/1e18)
                 total_claimed = round(float(channel_info_json['totalClaimed'])/1e14)
                 current_staked = round(float(channel_info_json['currentStaked'])/1e14)
+
+                flow_rate = cfa_contract.functions.getAccountFlowrate(super_degen_address, user_address).call()
+                net_flow = gda_contract.functions.getNetFlow(super_degen_address, user_address).call()
+                degenx_balance = sdegen_contract.functions.balanceOf(user_address).call()
+
+                flow_rate_month = flow_rate/1e18*60*60*24*365/12
+                net_flow_month = round(net_flow/1e18*60*60*24*365/12)
+                degenx_balance = round(degenx_balance/1e18)
+                total_result = round(net_flow_month + flow_rate_month)
                 
                 message = (
                     f"📢 Channel Information for {title} 📢\n\n"
                     f"👥 Number of subscribers: {number_of_subscribers}\n"
                     f"🔒 Number of stakers: {number_of_stakers}\n"
-                    f"💰 Subscribers income: {total_income} DEGENx\n"
+                    f"💰 Subscribers income: {subscribers_income} DEGENx\n"
+                    f"💰 Total income: {net_flow_month} DEGENx\n"
+                    f"💰 Total netflow: {total_result} DEGENx\n"
                     f"📊 Volume: {total_subscription_inflow_amount} DEGENx\n"
                     f"🤑 Total claimed: {total_claimed} ALFA\n"
                     f"🔗 Current staked: {current_staked} ALFA\n"
+                    f"👛 Your DEGENx Balance: {degenx_balance} tokens\n"
                 )
 
                 await update.message.reply_text(message)
