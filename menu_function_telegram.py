@@ -9,12 +9,27 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     chat_id = update.effective_chat.id
     print(f"User {chat_id} started the bot")  # Mensaje de depuración
     if chat_id not in registered_status or not registered_status[chat_id]:
-        await send_welcome_message(update, context)  # Enviar mensaje de bienvenida
-        await update.message.reply_text("Please enter your FID:", reply_markup=ReplyKeyboardRemove())
-        user_data[chat_id] = {'state': 'AWAITING_FID'}
+        await send_welcome_message(update, context)
+        reply_keyboard = [['FID', 'Address']]
+        markup = ReplyKeyboardMarkup(reply_keyboard, one_time_keyboard=True)
+        await update.message.reply_text("Please enter your FID or Address:", reply_markup=markup)
+        user_data[chat_id] = {'state': 'AWAITING_FID_OR_ADDRESS'}
+        # await update.message.reply_text("Please enter your FID:", reply_markup=ReplyKeyboardRemove())
+        # user_data[chat_id] = {'state': 'AWAITING_FID'}
         registered_status[chat_id] = False
     else:
         await show_main_menu(update, context)
+
+async def handle_fid_or_address(update: Update, context: ContextTypes.DEFAULT_TYPE, text: str):
+    chat_id = update.effective_chat.id
+    user_data[chat_id]['state'] = 'AWAITING_FID_OR_ADDRESS_RESPONSE'
+    if text.lower() == 'fid':
+        await update.message.reply_text("Please enter your FID:")
+    elif text.lower() == 'address':
+        await update.message.reply_text("Please enter your address:")
+    else:
+        await update.message.reply_text("Invalid option. Please choose 'FID' or 'Address'.")
+        return
 
 # Show main menu
 async def show_main_menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -71,7 +86,7 @@ async def show_channel_subscription_menu(update: Update, context: ContextTypes.D
 async def show_settings_menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
     chat_id = update.effective_chat.id
     user_data[chat_id]['state'] = 'SETTINGS_MENU'
-    reply_keyboard = [['Price', 'Unsubscribed', 'Claim', 'Back']]
+    reply_keyboard = [['Price', 'Unsubscribed', 'Claim', 'Balance', 'Back']]
     markup = ReplyKeyboardMarkup(reply_keyboard, one_time_keyboard=True)
 
     await update.message.reply_text(
@@ -134,5 +149,15 @@ async def show_claim_alerts_menu(update: Update, context: ContextTypes.DEFAULT_T
 
     await update.message.reply_text(
         "Claim Alerts Options:",
+        reply_markup=markup
+    )
+
+async def show_balance_alerts_menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    chat_id = update.effective_chat.id
+    user_data[chat_id]['state'] = 'BALANCE_ALERTS_MENU'
+    reply_keyboard = [['ON', 'OFF', 'Back']]
+    markup = ReplyKeyboardMarkup(reply_keyboard, one_time_keyboard=True)
+    await update.message.reply_text(
+        "Balance alerts:",
         reply_markup=markup
     )

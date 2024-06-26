@@ -5,7 +5,7 @@ from web3 import Web3
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from global_vars import user_data, registered_status, price_alert_jobs
 from functions import obtain_gas_price, get_unsubscribed_channels_with_timestamp
-from api_calls import user_information, channel_information
+from api_calls import user_information, channel_information, user_information_by_address
 
 from menu_function_telegram import (
     start,
@@ -18,7 +18,8 @@ from menu_function_telegram import (
     show_frequency_menu,
     show_gas_alerts_menu,
     show_unsubscribed_alerts_menu,
-    show_claim_alerts_menu
+    show_claim_alerts_menu,
+    show_balance_alerts_menu
 )
 
 dotenv.load_dotenv()
@@ -51,8 +52,26 @@ async def handle_text(update: Update, context: ContextTypes.DEFAULT_TYPE):
     print(f"Received text: {text}")
 
     if chat_id in user_data and 'state' in user_data[chat_id] and not registered_status.get(chat_id, False):
-        if user_data[chat_id]['state'] == 'AWAITING_FID':
+        if user_data[chat_id]['state'] == 'AWAITING_FID_OR_ADDRESS':
+            # Procesar la selección del tipo de entrada (FID o Address)
+            if text.lower() in ['fid', 'address']:
+                user_data[chat_id]['input_type'] = text.lower()  # Guarda el tipo de entrada
+                user_data[chat_id]['state'] = 'AWAITING_INPUT'
+                prompt = "Please enter your " + text.lower() + ":"
+                await update.message.reply_text(prompt)
+            else:
+                await update.message.reply_text("Please reply with 'FID' or 'Address' to specify the input type.")
+
+        elif user_data[chat_id]['state'] == 'AWAITING_INPUT':
+            # Procesar el FID o Address según lo que el usuario haya especificado
+            if user_data[chat_id].get('input_type') == 'fid':
+                await handle_fid(update, context, text)
+            elif user_data[chat_id].get('input_type') == 'address':
+                await handle_address(update, context, text)
+
+        elif user_data[chat_id]['state'] == 'AWAITING_FID':
             await handle_fid(update, context, text)
+
         elif user_data[chat_id]['state'] == 'AWAITING_GAS_PRICE':
             try:
                 gas_price = float(text)
@@ -66,43 +85,53 @@ async def handle_text(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 print(f"Invalid gas price entered by user {chat_id}: {text}")
                 await update.message.reply_text("Please enter a valid gas price.")
                 await show_gas_alerts_menu(update, context)
+        
         else:
             await show_main_menu(update, context)
+    
     elif registered_status.get(chat_id, False):
-        if user_data[chat_id]['state'] == 'USER_INFO_MENU':
-            await handle_user_info_menu(update, context, text)
-        elif user_data[chat_id]['state'] == 'GENERAL_INFO_MENU':
-            await handle_general_info_menu(update, context, text)
-        elif user_data[chat_id]['state'] == 'CHANNEL_SUBSCRIPTION_MENU':
-            await handle_channel_subscription_menu(update, context, text)
-        elif user_data[chat_id]['state'] == 'SETTINGS_MENU':
-            await handle_settings_menu(update, context, text)
-        elif user_data[chat_id]['state'] == 'PRICE_ALERTS_MENU':
-            await handle_price_alerts_menu(update, context, text)
-        elif user_data[chat_id]['state'] == 'GAS_ALERTS_MENU':
-            await handle_gas_alerts_menu(update, context, text)
-        elif user_data[chat_id]['state'] == 'FREQUENCY_MENU':
-            await handle_frequency_menu(update, context, text)
-        elif user_data[chat_id]['state'] == 'UNSUBSCRIBED_ALERTS_MENU':
-            await handle_unsubscribed_alerts_menu(update, context, text)
-        elif user_data[chat_id]['state'] == 'CLAIM_ALERTS_MENU':
-            await handle_claim_alerts_menu(update, context, text)
-        else:
-            if text == 'User information':
-                await handle_channel_option(update, context)  # Mostrar la información del canal
-                await show_user_info_menu(update, context)  # Mostrar el menú con los botones adicionales
-            elif text == 'General information':
-                await show_general_info_menu(update, context)
-            elif text == 'Degen price':
-                await search_degen_price(update, context)
-            elif text == 'Gas price':
-                await search_gas_price(update, context)
-            elif text == 'Alerts':
-                await show_settings_menu(update, context)
-            else:
-                await show_main_menu(update, context)
+        await handle_registered_user_actions(update, context, text)
+
     else:
         await start(update, context)
+
+async def handle_registered_user_actions(update: Update, context: ContextTypes.DEFAULT_TYPE, text: str):
+    chat_id = update.effective_chat.id
+    # Aquí podrías agregar casos adicionales según sea necesario
+    if user_data[chat_id]['state'] == 'USER_INFO_MENU':
+        await handle_user_info_menu(update, context, text)
+    elif user_data[chat_id]['state'] == 'GENERAL_INFO_MENU':
+        await handle_general_info_menu(update, context, text)
+    elif user_data[chat_id]['state'] == 'CHANNEL_SUBSCRIPTION_MENU':
+        await handle_channel_subscription_menu(update, context, text)
+    elif user_data[chat_id]['state'] == 'SETTINGS_MENU':
+        await handle_settings_menu(update, context, text)
+    elif user_data[chat_id]['state'] == 'PRICE_ALERTS_MENU':
+        await handle_price_alerts_menu(update, context, text)
+    elif user_data[chat_id]['state'] == 'GAS_ALERTS_MENU':
+        await handle_gas_alerts_menu(update, context, text)
+    elif user_data[chat_id]['state'] == 'FREQUENCY_MENU':
+        await handle_frequency_menu(update, context, text)
+    elif user_data[chat_id]['state'] == 'UNSUBSCRIBED_ALERTS_MENU':
+        await handle_unsubscribed_alerts_menu(update, context, text)
+    elif user_data[chat_id]['state'] == 'CLAIM_ALERTS_MENU':
+        await handle_claim_alerts_menu(update, context, text)
+    elif user_data[chat_id]['state'] == 'BALANCE_ALERTS_MENU':
+        await handle_balance_alerts_menu(update, context, text)
+    else:
+        if text == 'User information':
+            await handle_channel_option(update, context)
+            await show_user_info_menu(update, context)
+        elif text == 'General information':
+            await show_general_info_menu(update, context)
+        elif text == 'Degen price':
+            await search_degen_price(update, context)
+        elif text == 'Gas price':
+            await search_gas_price(update, context)
+        elif text == 'Alerts':
+            await show_settings_menu(update, context)
+        else:
+            await show_main_menu(update, context)
 
 async def send_welcome_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     chat_id = update.effective_chat.id
@@ -118,20 +147,6 @@ async def send_welcome_message(update: Update, context: ContextTypes.DEFAULT_TYP
         "- Unsubscribed Alerts: Get notified when someone unsubscribes from your channel.\n"
     )
     await update.message.reply_text(welcome_message)
-
-# # Function to return information about the bot
-# async def send_info_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
-#     info_message = (
-#         "AlfaFren Bot Information:\n\n"
-#         "Features:\n"
-#         "- /start: Start the bot and register your details.\n"
-#         "- /info: Get information about the bot and its features.\n"
-#         "- Price Alerts: Get notified when the price of Degen or gas changes.\n"
-#         "- User Information: View details about your channel and account.\n"
-#         "- Settings: Configure your alerts and preferences.\n"
-#         "- Unsubscribed Alerts: Get notified when someone unsubscribes from your channel.\n"
-#     )
-#     await update.message.reply_text(info_message)
     
 async def handle_fid(update: Update, context: ContextTypes.DEFAULT_TYPE, fid: str):
     chat_id = update.effective_chat.id
@@ -159,13 +174,40 @@ async def handle_fid(update: Update, context: ContextTypes.DEFAULT_TYPE, fid: st
         await update.message.reply_text(f"Error retrieving user information: {e}")
         user_data[chat_id]['state'] = 'AWAITING_FID'
 
+async def handle_address(update: Update, context: ContextTypes.DEFAULT_TYPE, address: str):
+    chat_id = update.effective_chat.id
+    try:
+        user_info = user_information_by_address(address)
+        if user_info:
+            user_info_json = json.loads(user_info)
+            channel_id = user_info_json['channeladdress']
+            account_id = user_info_json['userAddress']
+            handle = user_info_json['handle']
+            user_data[chat_id] = {
+                'channel_id': channel_id,
+                'account_id': account_id,
+                'handle': handle,
+                'address': address,
+                'state': 'MAIN_MENU'
+            }
+            registered_status[chat_id] = True
+            await update.message.reply_text(f"Welcome {handle}! Your address has been registered.")
+            await show_main_menu(update, context)
+        else:
+            await update.message.reply_text("No user information found for the provided address.")
+            user_data[chat_id]['state'] = 'AWAITING_INPUT'
+    except Exception as e:
+        await update.message.reply_text(f"Error retrieving user information: {e}")
+        user_data[chat_id]['state']
+       
+
 # Handle configuration menu options
 async def handle_settings_menu(update: Update, context: ContextTypes.DEFAULT_TYPE, text: str):
     chat_id = update.effective_chat.id
     if text == 'Price':
         await show_price_alerts_menu(update, context)
-    elif text == 'Gas Alerts':
-        await show_gas_alerts_menu(update, context)
+    elif text == 'Balance':
+        await show_balance_alerts_menu(update, context)
     elif text == 'Unsubscribed':
         await show_unsubscribed_alerts_menu(update, context)
     elif text == 'Claim':
@@ -307,6 +349,7 @@ async def check_and_alert_claim_time_periodically(update, context, chat_id):
         except Exception as e:
             await update.message.reply_text(f"Error processing claim information: {str(e)}")
         await asyncio.sleep(79200)  # Espera 22 horas antes de comprobar de nuevo
+        # await asyncio.sleep(79200)  # Espera 22 horas antes de comprobar de nuevo
 
 async def check_and_alert_claim_time(update, context, account_id):
     try:
@@ -447,15 +490,15 @@ async def handle_channel_option(update: Update, context: ContextTypes.DEFAULT_TY
                 
                 message = (
                     f"📢 Channel Information for {title} 📢\n\n"
-                    f"👥 Number of subscribers: {number_of_subscribers}\n"
-                    f"🔒 Number of stakers: {number_of_stakers}\n"
-                    f"💰 Subscribers income: {subscribers_income} DEGENx\n"
-                    f"💰 Total income: {net_flow_month} DEGENx\n"
-                    f"💰 Total netflow: {total_result} DEGENx\n"
-                    f"📊 Volume: {total_subscription_inflow_amount} DEGENx\n"
-                    f"🤑 Total claimed: {total_claimed} ALFA\n"
-                    f"🔗 Current staked: {current_staked} ALFA\n"
-                    f"👛 Your DEGENx Balance: {degenx_balance} tokens\n"
+                    f"👥 Number of subscribers: {number_of_subscribers:,}\n"
+                    f"🔒 Number of stakers: {number_of_stakers:,}\n"
+                    f"💰 Subscribers income: {subscribers_income:,} DEGENx\n"
+                    f"💰 Total income: {net_flow_month:,} DEGENx\n"
+                    f"💰 Total netflow: {total_result:,} DEGENx\n"
+                    f"📊 Volume: {total_subscription_inflow_amount:,} DEGENx\n"
+                    f"🤑 Total claimed: {total_claimed:,} ALFA\n"
+                    f"🔗 Current staked: {current_staked:,} ALFA\n"
+                    f"👛 Your DEGENx Balance: {degenx_balance:,} tokens\n"
                 )
 
                 await update.message.reply_text(message)
@@ -609,6 +652,46 @@ async def handle_unsubscribed_alerts_menu(update: Update, context: ContextTypes.
         await show_settings_menu(update, context)
     else:
         await show_unsubscribed_alerts_menu(update, context)
+
+async def handle_balance_alerts_menu(update: Update, context: ContextTypes.DEFAULT_TYPE, text: str):
+    chat_id = update.effective_chat.id
+    if text == 'ON':
+        user_data[chat_id]['balance_alert_active'] = True
+        await update.message.reply_text("Balance alerts have been turned ON.")
+        # Programar la tarea periódica si aún no está activa
+        if 'balance_alert_task' not in user_data[chat_id]:
+            user_data[chat_id]['balance_alert_task'] = asyncio.create_task(check_balance_periodically(context.bot, chat_id))
+    elif text == 'OFF':
+        user_data[chat_id]['balance_alert_active'] = False
+        await update.message.reply_text("Balance alerts have been turned OFF.")
+        # Cancelar la tarea periódica si está activa
+        if 'balance_alert_task' in user_data[chat_id]:
+            user_data[chat_id]['balance_alert_task'].cancel()
+            del user_data[chat_id]['balance_alert_task']
+    elif text == 'Back':
+        await show_settings_menu(update, context)
+    else:
+        await update.message.reply_text("Please choose 'ON', 'OFF', or 'Back'.")
+        await show_balance_alerts_menu(update, context)
+
+async def check_balance_periodically(bot, chat_id):
+    while user_data[chat_id].get('balance_alert_active', False):
+        try:
+            current_balance = get_degenx_balance(user_data[chat_id]['account_id'])
+            if current_balance is not None and current_balance < 7480:
+                await bot.send_message(chat_id=chat_id, text="Your DegenX balance is low. Please recharge to avoid liquidation.")
+        except Exception as e:
+            await bot.send_message(chat_id=chat_id, text=f"Error checking DegenX balance: {str(e)}")
+        await asyncio.sleep(1800)
+
+def get_degenx_balance(account_id):
+    try:
+        # Asumimos que 'sdegen_contract' es el contrato de DegenX y está inicializado en otro lugar del código
+        balance = sdegen_contract.functions.balanceOf(account_id).call()
+        return balance / 1e18  # Asumiendo que DegenX tiene 18 decimales
+    except Exception as e:
+        print(f"Error obtaining DegenX balance for {account_id}: {e}")
+        return None
 
 # Configuration command handler
 async def configuration(update: Update, context: ContextTypes.DEFAULT_TYPE):

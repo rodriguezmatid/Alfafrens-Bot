@@ -32,6 +32,19 @@ def user_information(fid):
         return response.text
     else:
         raise Exception(f"API request failed with status code {response.status_code}")
+    
+# Gives information about the user by address:
+def user_information_by_address(address):
+
+    url = f"https://alfafrens.com/api/v0/getUserByAddress?userAddress={address}"
+    
+    payload = {}
+    headers = {'Accept': 'application/json'}
+    response = requests.request("GET", url, headers=headers, data=payload)
+    if response.status_code == 200:
+        return response.text
+    else:
+        raise Exception(f"API request failed with status code {response.status_code}")
 
 # Gives you information about the channels that the input FID is subscribed
 def subscribed_channels_information(fid):
@@ -88,7 +101,9 @@ def detailed_channel_information(channel_address):
 
     print(response.text)
 
-# user_information(354894)
+
+
+# user_information_by_address("0x292f9892A9Bc702dd3cA785E7287718dA4479865")
 # result = channel_information("0xfe5b79144afeb94912d149c192b162530de5561d")
 # print(result)
 # result = detailed_channel_information("0xfe5b79144afeb94912d149c192b162530de5561d")
