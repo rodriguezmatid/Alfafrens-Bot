@@ -14,6 +14,8 @@ async def send_welcome_message(update: Update, context: ContextTypes.DEFAULT_TYP
         "👤 User Information: View details about your channel and account.\n"
         "⚙️ Settings: Configure your alerts and preferences.\n"
         "🔔 Unsubscribed Alerts: Get notified when someone unsubscribes from your channel.\n"
+        "💰 Balance Alerts: Receive alerts if your DegenX balance falls below 250 tokens.\n"
+        "📈 Claim Alerts: Be reminded every 22 hours to claim your rewards to ensure you don’t miss out.\n"
     )
     await update.message.reply_text(welcome_message)
 
@@ -28,5 +30,7 @@ async def send_info_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
         "👤 User Information: View details about your channel and account.\n"
         "⚙️ Settings: Configure your alerts and preferences.\n"
         "🔔 Unsubscribed Alerts: Get notified when someone unsubscribes from your channel.\n"
+        "💰 Balance Alerts: Receive alerts if your DegenX balance falls below 250 tokens, prompting you to recharge to avoid liquidation.\n"
+        "📈 Claim Alerts: Be reminded every 22 hours to claim your rewards, helping you maximize your earnings and maintain your staking benefits.\n"
     )
     await update.message.reply_text(info_message)
