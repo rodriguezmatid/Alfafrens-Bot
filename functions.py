@@ -88,7 +88,6 @@ def get_channels_subscription_cost(subscription_cost_input):
 # Function to get channels subscribed by an account
 def get_channels_subscribed(account_id):
     query = query_channels_subscribed(account_id)
-    print(query)
     data = run_query(query)
     
     if data and 'accounts' in data:
@@ -102,11 +101,9 @@ def get_unsubscribed_channels(account_id, subscription_cost_input):
     # Get channels by subscription cost
     # cost_channels = get_channels_subscription_cost(subscription_cost_input)
     cost_channels = get_better_channels_to_follow(subscription_cost_input)
-    print(cost_channels)
     
     # Get channels subscribed by account
     subscribed_channels = get_channels_subscribed(account_id)
-    print(subscribed_channels)
     
     # Ensure both results are lists
     if not isinstance(cost_channels, list):

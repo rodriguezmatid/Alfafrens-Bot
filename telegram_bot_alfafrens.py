@@ -2,7 +2,7 @@ import functions_telegram, message_handlers
 from telegram.ext import ApplicationBuilder, CommandHandler, MessageHandler, filters
 import os, logging, asyncio
 
-T_TOKEN = os.environ["TELEGRAM_TOKEN"]
+T_TOKEN = os.environ["TELEGRAM_TOKEN_TEST"]
 
 async def main():
     application = ApplicationBuilder().token(T_TOKEN).build()

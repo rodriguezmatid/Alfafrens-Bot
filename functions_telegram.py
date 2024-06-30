@@ -5,7 +5,7 @@ from web3 import Web3
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from global_vars import user_data, registered_status, price_alert_jobs
 from functions import obtain_gas_price, get_unsubscribed_channels_with_timestamp
-from api_calls import user_information, channel_information, user_information_by_address
+from api_calls import user_information, channel_information, user_information_by_address, get_user_id_from_airstack
 
 from menu_function_telegram import (
     start,
@@ -52,25 +52,28 @@ async def handle_text(update: Update, context: ContextTypes.DEFAULT_TYPE):
     print(f"Received text: {text}")
 
     if chat_id in user_data and 'state' in user_data[chat_id] and not registered_status.get(chat_id, False):
-        if user_data[chat_id]['state'] == 'AWAITING_FID_OR_ADDRESS':
-            # Procesar la selección del tipo de entrada (FID o Address)
-            if text.lower() in ['fid', 'address']:
-                user_data[chat_id]['input_type'] = text.lower()  # Guarda el tipo de entrada
-                user_data[chat_id]['state'] = 'AWAITING_INPUT'
-                prompt = "Please enter your " + text.lower() + ":"
-                await update.message.reply_text(prompt)
-            else:
-                await update.message.reply_text("Please reply with 'FID' or 'Address' to specify the input type.")
+        if user_data[chat_id]['state'] == 'AWAITING_USERNAME':
+            await handle_username(update, context, text)
 
-        elif user_data[chat_id]['state'] == 'AWAITING_INPUT':
-            # Procesar el FID o Address según lo que el usuario haya especificado
-            if user_data[chat_id].get('input_type') == 'fid':
-                await handle_fid(update, context, text)
-            elif user_data[chat_id].get('input_type') == 'address':
-                await handle_address(update, context, text)
+        # if user_data[chat_id]['state'] == 'AWAITING_FID_OR_ADDRESS':
+        #     # Procesar la selección del tipo de entrada (FID o Address)
+        #     if text.lower() in ['fid', 'address']:
+        #         user_data[chat_id]['input_type'] = text.lower()  # Guarda el tipo de entrada
+        #         user_data[chat_id]['state'] = 'AWAITING_INPUT'
+        #         prompt = "Please enter your " + text.lower() + ":"
+        #         await update.message.reply_text(prompt)
+        #     else:
+        #         await update.message.reply_text("Please reply with 'FID' or 'Address' to specify the input type.")
 
-        elif user_data[chat_id]['state'] == 'AWAITING_FID':
-            await handle_fid(update, context, text)
+        # elif user_data[chat_id]['state'] == 'AWAITING_INPUT':
+        #     # Procesar el FID o Address según lo que el usuario haya especificado
+        #     if user_data[chat_id].get('input_type') == 'fid':
+        #         await handle_fid(update, context, text)
+        #     elif user_data[chat_id].get('input_type') == 'address':
+        #         await handle_address(update, context, text)
+
+        # elif user_data[chat_id]['state'] == 'AWAITING_FID':
+        #     await handle_fid(update, context, text)
 
         elif user_data[chat_id]['state'] == 'AWAITING_GAS_PRICE':
             try:
@@ -95,9 +98,21 @@ async def handle_text(update: Update, context: ContextTypes.DEFAULT_TYPE):
     else:
         await start(update, context)
 
+async def handle_username(update: Update, context: ContextTypes.DEFAULT_TYPE, username: str):
+    chat_id = update.effective_chat.id
+    try:
+        fid = get_user_id_from_airstack(username)
+        if fid:
+            await handle_fid(update, context, fid)
+        else:
+            await update.message.reply_text("No FID found for the provided Farcaster username.")
+            user_data[chat_id]['state'] = 'AWAITING_USERNAME'
+    except Exception as e:
+        await update.message.reply_text(f"Error retrieving FID: {e}")
+        user_data[chat_id]['state'] = 'AWAITING_USERNAME'
+
 async def handle_registered_user_actions(update: Update, context: ContextTypes.DEFAULT_TYPE, text: str):
     chat_id = update.effective_chat.id
-    # Aquí podrías agregar casos adicionales según sea necesario
     if user_data[chat_id]['state'] == 'USER_INFO_MENU':
         await handle_user_info_menu(update, context, text)
     elif user_data[chat_id]['state'] == 'GENERAL_INFO_MENU':
@@ -132,7 +147,71 @@ async def handle_registered_user_actions(update: Update, context: ContextTypes.D
             await show_settings_menu(update, context)
         else:
             await show_main_menu(update, context)
+
+# async def handle_registered_user_actions(update: Update, context: ContextTypes.DEFAULT_TYPE, text: str):
+#     chat_id = update.effective_chat.id
+#     # Aquí podrías agregar casos adicionales según sea necesario
+#     if user_data[chat_id]['state'] == 'USER_INFO_MENU':
+#         await handle_user_info_menu(update, context, text)
+#     elif user_data[chat_id]['state'] == 'GENERAL_INFO_MENU':
+#         await handle_general_info_menu(update, context, text)
+#     elif user_data[chat_id]['state'] == 'CHANNEL_SUBSCRIPTION_MENU':
+#         await handle_channel_subscription_menu(update, context, text)
+#     elif user_data[chat_id]['state'] == 'SETTINGS_MENU':
+#         await handle_settings_menu(update, context, text)
+#     elif user_data[chat_id]['state'] == 'PRICE_ALERTS_MENU':
+#         await handle_price_alerts_menu(update, context, text)
+#     elif user_data[chat_id]['state'] == 'GAS_ALERTS_MENU':
+#         await handle_gas_alerts_menu(update, context, text)
+#     elif user_data[chat_id]['state'] == 'FREQUENCY_MENU':
+#         await handle_frequency_menu(update, context, text)
+#     elif user_data[chat_id]['state'] == 'UNSUBSCRIBED_ALERTS_MENU':
+#         await handle_unsubscribed_alerts_menu(update, context, text)
+#     elif user_data[chat_id]['state'] == 'CLAIM_ALERTS_MENU':
+#         await handle_claim_alerts_menu(update, context, text)
+#     elif user_data[chat_id]['state'] == 'BALANCE_ALERTS_MENU':
+#         await handle_balance_alerts_menu(update, context, text)
+#     else:
+#         if text == 'User information':
+#             await handle_channel_option(update, context)
+#             await show_user_info_menu(update, context)
+#         elif text == 'General information':
+#             await show_general_info_menu(update, context)
+#         elif text == 'Degen price':
+#             await search_degen_price(update, context)
+#         elif text == 'Gas price':
+#             await search_gas_price(update, context)
+#         elif text == 'Alerts':
+#             await show_settings_menu(update, context)
+#         else:
+#             await show_main_menu(update, context)
     
+# async def handle_fid(update: Update, context: ContextTypes.DEFAULT_TYPE, fid: str):
+#     chat_id = update.effective_chat.id
+#     try:
+#         user_info = user_information(fid)
+#         if user_info:
+#             user_info_json = json.loads(user_info)  # Parse JSON response
+#             channel_id = user_info_json['channeladdress']
+#             account_id = user_info_json['userAddress']
+#             handle = user_info_json['handle']
+#             user_data[chat_id] = {
+#                 'channel_id': channel_id,
+#                 'account_id': account_id,
+#                 'handle': handle,
+#                 'fid': fid,
+#                 'state': 'MAIN_MENU'
+#             }
+#             registered_status[chat_id] = True
+#             await update.message.reply_text(f"Welcome {handle}! Your FID has been registered.")
+#             await show_main_menu(update, context)
+#         else:
+#             await update.message.reply_text("No user information found for the provided FID.")
+#             user_data[chat_id]['state'] = 'AWAITING_FID'
+#     except Exception as e:
+#         await update.message.reply_text(f"Error retrieving user information: {e}")
+#         user_data[chat_id]['state'] = 'AWAITING_FID'
+
 async def handle_fid(update: Update, context: ContextTypes.DEFAULT_TYPE, fid: str):
     chat_id = update.effective_chat.id
     try:
@@ -154,10 +233,10 @@ async def handle_fid(update: Update, context: ContextTypes.DEFAULT_TYPE, fid: st
             await show_main_menu(update, context)
         else:
             await update.message.reply_text("No user information found for the provided FID.")
-            user_data[chat_id]['state'] = 'AWAITING_FID'
+            user_data[chat_id]['state'] = 'AWAITING_USERNAME'
     except Exception as e:
         await update.message.reply_text(f"Error retrieving user information: {e}")
-        user_data[chat_id]['state'] = 'AWAITING_FID'
+        user_data[chat_id]['state'] = 'AWAITING_USERNAME'
 
 async def handle_address(update: Update, context: ContextTypes.DEFAULT_TYPE, address: str):
     chat_id = update.effective_chat.id

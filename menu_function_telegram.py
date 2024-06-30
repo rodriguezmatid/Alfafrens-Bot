@@ -5,17 +5,28 @@ from message_handlers import send_welcome_message  # Importar desde el nuevo arc
 
 # Assuming user_data and registered_status are defined elsewhere
 # Import them if they are not in this file
+# async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
+#     chat_id = update.effective_chat.id
+#     print(f"User {chat_id} started the bot")  # Mensaje de depuración
+#     if chat_id not in registered_status or not registered_status[chat_id]:
+#         await send_welcome_message(update, context)
+#         reply_keyboard = [['FID', 'Address']]
+#         markup = ReplyKeyboardMarkup(reply_keyboard, one_time_keyboard=True)
+#         await update.message.reply_text("Please enter your FID or Address:", reply_markup=markup)
+#         user_data[chat_id] = {'state': 'AWAITING_FID_OR_ADDRESS'}
+#         # await update.message.reply_text("Please enter your FID:", reply_markup=ReplyKeyboardRemove())
+#         # user_data[chat_id] = {'state': 'AWAITING_FID'}
+#         registered_status[chat_id] = False
+#     else:
+#         await show_main_menu(update, context)
+
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     chat_id = update.effective_chat.id
-    print(f"User {chat_id} started the bot")  # Mensaje de depuración
+    print(f"User {chat_id} started the bot")
     if chat_id not in registered_status or not registered_status[chat_id]:
         await send_welcome_message(update, context)
-        reply_keyboard = [['FID', 'Address']]
-        markup = ReplyKeyboardMarkup(reply_keyboard, one_time_keyboard=True)
-        await update.message.reply_text("Please enter your FID or Address:", reply_markup=markup)
-        user_data[chat_id] = {'state': 'AWAITING_FID_OR_ADDRESS'}
-        # await update.message.reply_text("Please enter your FID:", reply_markup=ReplyKeyboardRemove())
-        # user_data[chat_id] = {'state': 'AWAITING_FID'}
+        user_data[chat_id] = {'state': 'AWAITING_USERNAME'}
+        await update.message.reply_text("Please enter your Farcaster username:", reply_markup=ReplyKeyboardRemove())
         registered_status[chat_id] = False
     else:
         await show_main_menu(update, context)
