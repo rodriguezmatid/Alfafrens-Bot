@@ -1,4 +1,5 @@
 import requests
+from airstack import fetch_user_id  # Import the new function from airstack.py
 
 # Gives a boolean indicating if the profile is subscribed to your channel
 def is_user_subscribed(channel_address, user_address):
@@ -101,7 +102,13 @@ def detailed_channel_information(channel_address):
 
     print(response.text)
 
-
+def get_user_id_from_airstack(username):
+    user_id = fetch_user_id(username)
+    if user_id:
+        print(f"Fetched userId for {username}: {user_id}")
+    else:
+        print(f"Failed to fetch userId for {username} or no userId found")
+    return user_id
 
 # user_information_by_address("0x292f9892A9Bc702dd3cA785E7287718dA4479865")
 # result = channel_information("0xfe5b79144afeb94912d149c192b162530de5561d")
