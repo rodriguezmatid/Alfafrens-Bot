@@ -2,6 +2,9 @@ from telegram import ReplyKeyboardMarkup, ReplyKeyboardRemove, Update
 from telegram.ext import ContextTypes
 from global_vars import user_data, registered_status, price_alert_jobs
 from message_handlers import send_welcome_message  # Importar desde el nuevo archivo
+from bd_scripts import (
+    update_user_state, update_alert, get_user_state
+)
 
 # Assuming user_data and registered_status are defined elsewhere
 # Import them if they are not in this file
@@ -22,14 +25,24 @@ from message_handlers import send_welcome_message  # Importar desde el nuevo arc
 
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     chat_id = update.effective_chat.id
-    print(f"User {chat_id} started the bot")
-    if chat_id not in registered_status or not registered_status[chat_id]:
+    user_state = get_user_state(chat_id)  # Obtener el estado desde la base de datos
+
+    if user_state:
+        user_data[chat_id] = user_state
+        registered_status[chat_id] = user_state.get('registered_status', False)
+
+        if registered_status[chat_id]:
+            await show_main_menu(update, context)
+        else:
+            # Si no está registrado pero tiene un estado, pide completar el registro
+            await update.message.reply_text("Please, fill your information.")
+            await update.message.reply_text("Please enter your Farcaster username:", reply_markup=ReplyKeyboardRemove())
+    else:
+        # Nuevo usuario o no registrado
         await send_welcome_message(update, context)
         user_data[chat_id] = {'state': 'AWAITING_USERNAME'}
         await update.message.reply_text("Please enter your Farcaster username:", reply_markup=ReplyKeyboardRemove())
         registered_status[chat_id] = False
-    else:
-        await show_main_menu(update, context)
 
 async def handle_fid_or_address(update: Update, context: ContextTypes.DEFAULT_TYPE, text: str):
     chat_id = update.effective_chat.id

@@ -6,6 +6,7 @@ from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from global_vars import user_data, registered_status, price_alert_jobs
 from functions import obtain_gas_price, get_unsubscribed_channels_with_timestamp
 from api_calls import user_information, channel_information, user_information_by_address, get_user_id_from_airstack
+from bd_scripts import update_user_state, update_alert, db_connect
 
 from menu_function_telegram import (
     start,
@@ -104,6 +105,8 @@ async def handle_username(update: Update, context: ContextTypes.DEFAULT_TYPE, us
         fid = get_user_id_from_airstack(username)
         if fid:
             await handle_fid(update, context, fid)
+            update_user_state(chat_id, username, fid, 'MAIN_MENU', True)  # Actualizar estado en la BD
+            await update.message.reply_text("FID found and registered.")
         else:
             await update.message.reply_text("No FID found for the provided Farcaster username.")
             user_data[chat_id]['state'] = 'AWAITING_USERNAME'
@@ -637,6 +640,7 @@ async def handle_gas_alerts_menu(update: Update, context: ContextTypes.DEFAULT_T
     if text == 'ON':
         user_data[chat_id]['state'] = 'AWAITING_GAS_PRICE'
         await update.message.reply_text("Please enter the gas price for your alert:")
+        update_alert(chat_id, 'gas_price', True, {})
     elif text == 'OFF':
         if chat_id in user_data and 'gas_alert_price' in user_data[chat_id]:
             del user_data[chat_id]['gas_alert_price']
